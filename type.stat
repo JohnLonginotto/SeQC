@@ -1,0 +1,97 @@
+# WHAT IS A READ TYPE?
+# After having a bit of a think about the different possible combinations of read mappings that could exist in a BAM/SAM file, 
+# I reason that there are 20 different orientations or "types" of orientation a single or paired-end read can map. 
+# This 'read type' can not, unfortunately, be worked out from the read flags alone - you also need to know if the chromosomes between the pairs
+# are the same, and know which read maps first in genomic space. I believe this read TYPE classification helps Biologists conceptulize 
+# their read data, and helps the Bioinformatician isolate causes of bias beyond what the read flag information alone would tell you.
+# For a illustration of read types, see http://ac.gt/readtypes.png
+
+intToFlag,strToFlag,readFirst,mateFirst,noneFirst = {},{},{},{},{}
+for x in xrange(0,4096):
+    binary = format(x, '#014b')
+    output  = 'A' if binary[13] == '1' else 'a'
+    output += 'B' if binary[12] == '1' else 'b'
+    output += 'C' if binary[11] == '1' else 'c'
+    output += 'D' if binary[10] == '1' else 'd'
+    output += 'E' if binary[9] == '1' else 'e'
+    output += 'F' if binary[8] == '1' else 'f'
+    output += 'G' if binary[7] == '1' else 'g'
+    output += 'H' if binary[6] == '1' else 'h'
+    output += 'I' if binary[5] == '1' else 'i'
+    output += 'J' if binary[4] == '1' else 'j'
+    output += 'K' if binary[3] == '1' else 'k'
+    output += 'L' if binary[2] == '1' else 'l'
+    intToFlag[    x ] = output # Read flag number goes in, AC.GT flag notation comes out.
+    strToFlag[str(x)] = output # Better to coerce these 4096 ints now, than do it for every read in a SAM file.
+    ## Creation of two dictionaries where read is part of a pair, and both pairs are mapped (A,c,d). Type depends on strand read/mate is mapped to (eE/fF)
+    if not any(letter in ['a', 'C', 'D'] for letter in output):
+        if   'eF' in output: readFirst[output] = 5  ; mateFirst[output] = 11
+        elif 'Ef' in output: readFirst[output] = 9  ; mateFirst[output] = 7
+        elif 'ef' in output: readFirst[output] = 13 ; mateFirst[output] = 15
+        elif 'EF' in output: readFirst[output] = 17 ; mateFirst[output] = 19
+    ## All other reads, as well as some of those above, fall into the noneFirst dictionary.
+    ## For single-end seq:
+    if 'a' in output:
+        if 'C' in output: noneFirst[output] = 1
+        else:
+            if 'e' in output: noneFirst[output] = 3
+            else: noneFirst[output] = 4
+    ## For paired-end seq:
+    elif 'CD' in output:
+        # Read & mate unmapped. Must be Type 2.
+        noneFirst[output] = 2
+    elif 'C' in output:
+        # Must be 'Cd', so just read unmapped. According to SAM spec. no assumptions can be made about B,E,I,L (or F in previous template, but previous template should also have D so dont stress about going back through the file to find it...)
+        if 'f' in output: noneFirst[output] = 8
+        elif 'F' in output: noneFirst[output] = 12
+    elif 'D' in output:
+        # Must be 'cD', so just mate unmapped. Cannot use F flag.
+        if 'e' in output: noneFirst[output] = 6
+        elif 'E' in output: noneFirst[output] = 10
+    else:
+        ## Must be 'cd', so both reads map - but although we caught these reads in our readFirst/mateFirst dictionaries, this can also happen when noneFirst (different chromosomes):
+        if 'ef' in output: noneFirst[output] = 14
+        elif 'EF' in output: noneFirst[output] = 16
+        elif 'Ef' in output: noneFirst[output] = 18
+        elif 'eF' in output: noneFirst[output] = 20
+
+class TYPE:
+
+    def __init__(self):
+        self.SQL = 'TEXT'        # Determines datatype in SQL column. Whole number = 'INT'. Decimal Number = 'REAL'. Catagorical data = 'TEXT'.
+        self.VERSION = 1         # Default is 1. Increased only if a new version gives a value incompatible with an old version.
+        self.PARAMETERS = None   # Default is None. 
+
+    # How to calculate your stat from a SAM file:
+    def SAM(self,line):
+        FLAG = strToFlag[line[1]]
+        mateChr,readStart,mateStart = line[6],int(line[3]),int(line[7])
+        sameChr = True if (mateChr == '=') or (line[2] == mateChr) else False
+        ###########################################################
+        if any(letter in ['C','D'] for letter in FLAG): FIF = None
+        elif sameChr == False:                          FIF = None
+        elif readStart < mateStart:                     FIF ='read'
+        elif readStart == mateStart:                    FIF = None
+        else:                                           FIF ='mate'
+        ###########################################################
+        if FIF   == 'read': return readFirst[FLAG]
+        elif FIF == 'mate': return mateFirst[FLAG]
+        else:               return noneFirst[FLAG]
+
+    # How to calculate your stat from a BAM file:
+    def BAM(self,line):
+        FLAG = intToFlag[line.flag]
+        mateChr,readStart,mateStart = line.mrnm,int(line.pos),int(line.mpos)
+        sameChr = True if mateChr == line.tid else False
+        ###########################################################
+        if any(letter in ['C','D'] for letter in FLAG): FIF = None
+        elif sameChr == False:                          FIF = None
+        elif readStart < mateStart:                     FIF ='read'
+        elif readStart == mateStart:                    FIF = None
+        else:                                           FIF ='mate'
+        ###########################################################
+        if FIF   == 'read': return readFirst[FLAG]
+        elif FIF == 'mate': return mateFirst[FLAG]
+        else:               return noneFirst[FLAG]
+
+availableStats['type'] = TYPE() # add your module to the availableStats dictionary.

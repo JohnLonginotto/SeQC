@@ -1,0 +1,29 @@
+class GC:
+    def __init__(self):
+        self.SQL = 'INT'         # Determines datatype in SQL column. Whole number = 'INT'. Decimal Number = 'REAL'. Catagorical data = 'TEXT'.
+        self.VERSION = 1         # Default is 1. Increased only if a new version gives a value incompatible with an old version.
+        self.PARAMETERS = None   # Default is None. 
+
+    # How to calculate your stat from a SAM file:
+    def SAM(self,line):
+        seq = line[9]
+        at  = seq.count('A') + seq.count('T')
+        cg  = seq.count('C') + seq.count('G')
+        if at+cg != 0:
+            return (cg*100) / (at+cg)
+        else:
+            return None
+
+    # How to calculate your stat from a BAM file:
+    def BAM(self,line):
+        seq = line.seq                          # Multiple calls to line.seq slows things down :(
+        at  = seq.count('A') + seq.count('T')
+        cg  = seq.count('C') + seq.count('G')
+        if at+cg != 0:
+            return (cg*100) / (at+cg)
+        else:
+            return None
+        #try: return (cg*100) / (at+cg)
+        # except ZeroDivisionError: return None
+
+availableStats['gc'] = GC() # add your module to the availableStats dictionary.
