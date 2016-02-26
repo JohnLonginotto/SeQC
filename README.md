@@ -7,6 +7,6 @@ Unfortunately, with high-throughput sequencing being the hammer for all nails th
 
 > "So what if my GC% distribution is out a bit - maybe thats biological?"
 
-So SeQC is not like FASTQC or similar such reporting tools. Rather, it allows you to investigate the nature of sequencing data at scale, detect subtle inconsistencies by comparing your data with others, and ultimately really get to grips with the composition of your sequencing. It is also incredibly easy to use, and if you know some Python, incredibly easy to customise.
+So SeQC is not like FASTQC or similar such reporting tools. Rather, it allows you to investigate the nature of sequencing data at scale, detect subtle inconsistencies by comparing your data with others, and ultimately really get to grips with the composition of your sequencing. It is also incredibly easy to use, and if you know some Python, incredibly easy to extend upon.
 
 It also allows you to centralize your QC reports into a single database - either SQLite or Postegres - and even share/compare that data with others over the internet. How does your data compare to the ENCODE data sets? SeQC will tell you. Why does one of your replicates deviate so much from the other samples? SeQC will give you the tools to find out.
