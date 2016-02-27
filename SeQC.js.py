@@ -8,6 +8,8 @@ version = 1//1 ; ''' These two lines are
 # the Python code. You can get more information via http://ac.gt/seqc, or run "node ./SeQC.js.py --help"
 
 
+## One day i'll get around to putting this up on pypi and/or npm, but for now here's instructions on how to do things on OSX:
+
 # Pysam Installation
 ########################
 # For Mac OSX:
@@ -22,6 +24,7 @@ version = 1//1 ; ''' These two lines are
 # > sudo easy_install pip
 # > pip install --user psycopg2
 
+## Import required librarys:
 import os
 import sys
 import csv
@@ -38,22 +41,23 @@ import fileinput
 import subprocess
 import collections
 
+# Import optional librarys:
 try: import pysam ; pysamInstalled = True
 except: pysamInstalled = False
 try: import psycopg2 ; postgresInstalled = True
 except: postgresInstalled = False
 
+## Import stat modules from SeQC's directory:
 availableStats = {}
 SeQC = os.path.abspath(__file__)                          ## Path to SeQC.js.py itself. Used for spawning new processes.
-SeQC_directory = os.path.dirname(SeQC)                    ## Where all the stat modules should be!
-for potentialStat in os.listdir(SeQC_directory):
-        thisFile = os.path.join(SeQC_directory,potentialStat)
-        if thisFile.endswith('.stat'): execfile(thisFile) ## I should upgrade this to a proper plugin/module manager, but this works fine for now. 
+for potentialStat in os.listdir(os.path.dirname(SeQC)):
+        thisFile = os.path.join(os.path.dirname(SeQC), potentialStat)
+        if thisFile.endswith('.stat'):
+            execfile(thisFile)                            ## I should upgrade this to a proper plugin/module manager, but this works fine for now. 
 
 ## Parse user-supplied command line options:
 parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
     description="Put in multiple BAM/SAM files, get out an SQL database of read statistics.")
-
 parser.add_argument("-a", "--analysis", nargs='+', metavar='', action='append',
     help='''Optional. One or more statistic to gather.
 Eg. "SeQC -a gc type -a tlen" would generate three stats: gc and type (linked) and tlen (unlinked).
@@ -64,7 +68,7 @@ parser.add_argument("--samtools", default='samtools', metavar='/path/to/samtools
     help="Optional until it isn't. Path to samtools if it's needed and cannot be found.")
 parser.add_argument("-i", "--input", nargs='+', metavar='file',
     help='Required. One or more SAM (and/or BAM) files to analyse.')
-parser.add_argument("-o", "--output", default='myProject', metavar='',
+parser.add_argument("-o", "--output", default='myProject.SeQC', metavar='',
     help='Optional. Name of output database (or path for SQLite). Default is "myProject".')
 parser.add_argument("-q", '--quiet', action='store_true',
     help='Optional. No status bars in output. Good for logs, bad for humans.')
@@ -74,24 +78,22 @@ parser.add_argument("-pp", "--pgpass", metavar='',
     help="Optional. Password of --pguser.")
 parser.add_argument("-ph", "--pghost", default="localhost", metavar='',
     help="Optional. Hostname of postgres database. Default is localhost.")
-parser.add_argument("--cpu", default=2, metavar='n',
+parser.add_argument("--cpu", default=2, metavar='n', type=int,
     help="Optional. Number of processes/cores you want to use. Default is 2.")
 parser.add_argument('--writeover', action='store_true',
     help="Optional. Will write over old data even if inputs/analyses are identical")
 parser.add_argument("--debug", action='store_true',
     help="To err is human; to debug, divine.")
-# Internal Options (should never be set by the user)
-parser.add_argument("--SAM", help=argparse.SUPPRESS) # Used internally to tell subprocesses we are reading SAM. Set to either 'stdin' or 'file'
-parser.add_argument("--BAM", action="store_true", help=argparse.SUPPRESS) # Used internally to tell subprocesses we reading directly via pysam or htspython
-parser.add_argument("--INDEX", action="store_true", help=argparse.SUPPRESS) # Used internally to tell subprocess to index table after insertion (postgres only).
+parser.add_argument("--SAM", help=argparse.SUPPRESS)                        # Used internally to tell subprocesses we are reading SAM. Set to either 'stdin' or 'file'.
+parser.add_argument("--BAM", action="store_true", help=argparse.SUPPRESS)   # Used internally to tell subprocesses we reading directly via pysam or htspython.
 args = parser.parse_args()
-if args.debug: args.quiet = True
 
-if args.analysis != None:
-    # We make each linked group of stats a set, in the event that the user adds the same stat twice, eg. -a gc gc becomes (gc)
-    # We sort by stat name in each linked group of stats so "-a tlen gc" becomes (gc,tlen).
-    # We then put these groups into a set, so that "-a gc tlen -a tlen gc" becomes ((gc,tlen),(gc,tlen)) which becomes ((gc,tlen)).
-    # We use tuple() because sorted() returns a list, and we want to use these groups as keys in dictionaries later on.
+## Normalize user analysis arguments:
+if args.analysis is not None:
+    # We make each linked group of stats a set, before converting to a tuple, in the event that the user adds the same stat twice, eg. -a gc gc becomes just (gc).
+    # We also sort by stat name in each linked group of stats so "-a tlen gc" becomes (gc,tlen).
+    # We then put these tuples into a set, so that "-a gc tlen -a tlen gc" would become just ((gc,tlen)).
+    # Finally we then put all these sorted tuples into a sorted list. ~ phew ~
     allAnalyses = set()
     for linkedGroup in args.analysis:
         linkedGroup = set(linkedGroup)
@@ -105,7 +107,7 @@ if args.analysis != None:
 else:
     args.analysis = [tuple(sorted(availableStats.keys()))]      # Also a list, but of just 1 tuple - containing all the possible stats (sorted)
 
-## Check file to see if we have a "null byte" (0x00) in the first 20Mb. Only ever happens with binary files like BAMs.
+## This function checks to see if a fine is binary (BAM) or ASCII (SAM) by looking for a "null byte" (0x00) in the first 20Mb of the file.
 def bamCheck(fileName):
     with open(fileName, 'rb') as xamfile:
         for i in range(10): # 10 tries to find a null byte in 2Mb chunks.
@@ -115,9 +117,12 @@ def bamCheck(fileName):
                 if i == 0 and not section: return None  # Empty file.
                 else:                      return False # SAM file.
 
-if (args.SAM == None) and (args.BAM == False): # Child processes always have either --SAM or --BAM set, so below is for parent process only:
+## args.SAM and args.BAM are only ever present in subprocesses. The main parent python code (executed by the user) starts below:
+if not args.SAM and not args.BAM:
     subprocesses = {}
-    try: ## Here we check for updates to SeQC.js.py, and alert the user if true. Nothing ever gets auto-installed - this is just a warning.
+
+    ## First we check for any updates to SeQC.js.py -- nothing is ever auto-installed, this is just a warning.
+    try:
         latestVersion = urllib.urlopen("http://ac.gt/seqc/version").read()
         if latestVersion != str(version): print '''
 ---------------------------------------------------
@@ -126,16 +131,19 @@ Visit http://ac.gt/seqc for more details :)
 ---------------------------------------------------'''
     except: pass
 
+    ## The message below is fired if the user does not provide any command line parameters at all when running SeQC:
     if not args.input: print '''
 Hello :)
 You must supply at least one SAM or BAM file, in the format "SeQC.js.py --input ./somefile1 ./somefile2 ... etc"
 If this is your first time using SeQC, try "SeQC.js.py --help" or visit http://ac.gt/seqc/ for usage infomation.'''; exit()
+
+    ## Determine if the user is writing to a SQLite or Postgres database, and determine that the provided details work:
     if args.pguser == None:
         print '   [ Using SQLite for output ]'
-        if os.path.isdir(args.output):
-            print '''
+        if os.path.isdir(args.output): print '''
 ERROR: You have provided an existing DIRECTORY for your output, but I need a file name!
 Please use the exact name of the output file you want (you can always rename it later)'''; exit()
+
         if os.path.isfile(args.output): print '   [ Output file already exists ]'; newDB = False
         else:                           print '   [ Output file does not exist ]'; newDB = True
     else:
@@ -157,27 +165,30 @@ Please use the exact name of the output file you want (you can always rename it 
 You have specified a postgres username (and therefore want to use postgres) but you have not installed psycopg2!
 Please install it via "pip install --user psycopg2"'''; exit()
 
-    ## Do checks on user inputs:
+    ## Check that the files the user wants to analyse can be accessed:
+    ## If a file becomes inaccesible later it will be skipped, but a check early on dosen't hurt...
     usedInputs = []
     for inputFile in args.input:
         if not os.path.isfile(inputFile) or not os.access(inputFile, os.R_OK): 
             print 'ERROR: The input file ' + str(inputFile) + ' could not be accessed. Are you sure it exists and we have permissions to read it? (continuing without it)'
         else: usedInputs.append(inputFile)
 
-    ## Parameters to send to subprocesses:
+    ## Most parameters to all subprocesses are static and never change, such as the database connection details or --writeover. 
+    ## Here we collect them all into 1 string called explicitStats:
     explicitStats = ''
     for group in args.analysis: explicitStats += ' --analysis ' + ' '.join(group)
     if args.writeover: explicitStats += ' --writeover'
     if args.pguser != None:
         explicitStats += ' --pguser "' + args.pguser + '" --pgpass "' + password + '" --pghost "' + args.pghost + '"'
 
-    ## Check all input files to see if there are any BAMs and if we will need samtools
+    ## We only need samtools if we have one or more BAM files. Here we check all files with the bamCheck function, 
+    ## and if a binary file is found, we check if we can find/execute samtools.
     DEVNULL = open(os.devnull, 'wb')
     if args.debug: STDERR = subprocess.STDOUT
     else: STDERR = DEVNULL
     for inFile in usedInputs:
         ##### THIS IS WHERE LOG.BIO SUPPORT FOR PRE-HASHING WOULD GO (GOLD SUPPORT - PLATINUM REQUIRES PROGRAM TO MD5 as it reads file).
-        if bamCheck(inFile) == True:
+        if bamCheck(inFile):
             if not args.samtools:
                 exitcode = subprocess.call('samtools', stdout=DEVNULL, stderr=DEVNULL, shell=True)
                 if exitcode != 1: # Samtools is weird, in that calling it with no parameters returns exitcode 1 rather than 0.
@@ -192,12 +203,13 @@ Please specify a path to samtools with the --samtools parameter :)'''; exit()
 ERROR: You have tried to calculate statistics on a BAM file, but the path to samtools you have provided:
 ("' + args.samtools + '") does not work :(
 Please check it and try again :)\n'''; exit()
-            if pysamInstalled == False: print 'INFO: You should install pysam if you can. It makes everything a lot faster!'
+            if not pysamInstalled: print 'INFO: You should install pysam if you can. It makes everything a lot faster!'
             break # As soon as we have 1 BAM file, we do the above checks - but only once.
 
-    ## This function fires off a subprocess every time it's called, setting the --SAM/BAM parameters as required.
+    ## This function fires off the subprocesses which actually analyse the input BAM/SAM data.
+    ## It will be called in a loop later as we process the input files.
     def doSeQC(inputFile):
-        if bamCheck(inputFile) == True:
+        if bamCheck(inputFile):
             if pysamInstalled:
                 subprocessCommand = 'python "' + SeQC + '" --input "' + inputFile + '" --BAM --output "' + args.output + '" ' + explicitStats
                 if args.debug: print subprocessCommand # Dont run it, just print what would have been run.
@@ -211,7 +223,10 @@ Please check it and try again :)\n'''; exit()
             if args.debug: print subprocessCommand
             else: return subprocess.Popen(subprocessCommand, stdout=subprocess.PIPE, stderr=STDERR, shell=True, executable='/bin/bash')
 
-    ## Table schema works for both SQLite and Postgres:
+    ## The table schema for the INFO table. 
+    ## The INFO table stores metadata on all the analysed files, as well as 
+    ## which stats (or linked groups of stats) have been collected for each file.
+    ## I am always open to more suggestion on metadata we should be collecting!
     infoTableCreation = '''CREATE TABLE "INFO" (
                             "sampleHash" TEXT PRIMARY KEY,
                             "analyses" TEXT,
@@ -222,9 +237,11 @@ Please check it and try again :)\n'''; exit()
                             "analysisTime" TEXT, 
                             "header" TEXT 
                         )'''
+
+    ## Create the INFO table (if not already present) for SQLite:
     if args.pguser == None:
         try:
-            con = sqlite3.connect(args.output + '.SeQC', timeout=120)
+            con = sqlite3.connect(args.output, timeout=120)
             cur = con.cursor()
             if newDB: print '   [ Database created ]'
             cur.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='INFO';")
@@ -243,6 +260,7 @@ If you do not know what caused this error, please e-mail longinotto@immunbio.mpg
         finally:
             if cur: cur.close()
             if con: con.close()
+    ## Create the INFO table (if not already present) for Postgres:
     else:
         try:
             con = psycopg2.connect(dbname='postgres', user=args.pguser, host=args.hostname, password=password)   # We connect to the main (always there) postgres database, just to establish a connection. From there we can create our new database table.
@@ -282,80 +300,91 @@ If you do not know what caused this error, please e-mail longinotto@immunbio.mpg
             if cur: cur.close()
             if con: con.close()
 
-    if args.quiet == False:
-        print '\nStarting initial processes to analyse input files (max ' + str(args.cpu)  + ' at a time):\n'
 
-    ## Fire off initial subprocesses!
+    ## Fire off the initial subprocesses to start analysing the data!
+    if not args.quiet:
+        print '\nStarting initial processes to analyse input files (max ' + str(args.cpu)  + ' at a time):\n'
     if args.debug: print '''
-    Because you are in debug mode, data wont actually be analysed. Below are just the subprocess commands that WOULD have been run.
-    You can run them manually, also with or without a "--debug", to see more information on the error you are experiencing.'''
+-------------------------------------------------------------------------------------------------------------------------------
+Because you are in debug mode, data wont actually be analysed. Below are just the subprocess commands that WOULD have been run.
+You can run them manually, also with or without a "--debug", to see more information on the error you are experiencing.
+-------------------------------------------------------------------------------------------------------------------------------
+'''
     for index, inputFile in enumerate(usedInputs):
-        if index+1 > int(args.cpu):  break
+        if index == args.cpu: break
         subprocesses[inputFile] = doSeQC(usedInputs.pop(0))
-        if args.quiet == False: print '\033[A   [ ' + str(index+1) + '/' + str(args.cpu) + ' ]'
+        if not args.quiet and not args.debug:
+            print '\033[A   [ ' + str(index+1) + '/' + str(args.cpu) + ' ]'
     if args.debug: exit()
 
-    ## This is the pretty horrible code that prints out the status bars. It's incredibly ugly, and yes there are a ton of packages which make this easier, but in order to keep dependancies low (for the biologists who dislike installing stuff), i've rolled my own to keep things 'core'. If it explodes, i'll be the first to say I told me so.
+    ## Function to tidy up finished/aborted subprocesses:
+    def tidy(msg):
+        if args.quiet: print msg
+        else: allDone.append(msg)
+        del subprocesses[theFile]
+        try: del outputs[theFile]
+        except KeyError: pass 
+
+    ## Subprocesses always respond with 1 character of status data every 1 second (unless they have become unresponsive)
+    ## This is because when I first wrote SeQC 2 years ago, I didnt know about select.select() and non-blocking stdout reading.
+    ## In the future I will use select, but even though the below is ugly as hell, it's never failed me yet!
+    ## Basically we draw the status bars, and submit new subprocesses when old ones complete.
     print '\n\nCalculating Statistics..'
     outputs = {}
     timeToWrite = []
     arrow = '>'
     allDone = []
     while len(subprocesses) > 0:
-        termRows, termCols = map(int,os.popen('stty size', 'r').read().split())
-        spaceFree = termCols-132
-        arrow = '' if arrow else '>'                                        ## '' is falsey, while '>' is truthy.
+        ## Get the terminal width:
+        terminalRows, terminalCols = map(int,os.popen('stty size', 'r').read().split())
 
-        for item in allDone:                                                ## Before we print out the 'active' stuff, lets
-            print item.ljust(termCols)                                      ## print out the completed/failed stuff so that
-        allDone = []                                                        ## it scrolls up and out of the way.
+        ## Before we print out the 'active' stuff, lets print out the completed/failed stuff so that it scrolls up and out of the way.
+        for item in allDone: print item.ljust(terminalCols)  ## Using ljust here so we wipe over the stuff previously on this line.
+        allDone = []
 
+        ## Read the 1 byte of status output from all subprocesses:
         for theFile, handler in subprocesses.items():
             try: out = handler.stdout.read(1)
-            except:
-                out = '?'; outputs[theFile] = '?'
-                if args.debug and guessReads(theFile,args.samtools) == 0: print 'File ' + theFile  + ' does not appear to have any reads inside it. This means it is either not in the SAM/BAM format, or that it is simply an empty file!'
+            except: tidy('ERROR: Process analysing ' + theFile + ' unexpectedly stopped?!')
 
-            #if out == '': out = 0 # does this ever happen?
-            if out in ['0','1','2','3','4','5','6','7','8','9']: outputs[theFile] += '='*int(out)
-            elif out == '#': outputs[theFile] = 'Calculating MD5         |'
-            elif out == '|': outputs[theFile] = 'Calculating Statistics  |'
-            elif out == '@': outputs[theFile] = 'Writing To Database     |'
-            elif out == '$': outputs[theFile] = 'Postgres Table Indexing |'
-            elif out == '%':
-                if args.quiet: print 'File ' + theFile + ' skipped.'
-                else: allDone.append('Skipped: ' + theFile)
-                del subprocesses[theFile]; del outputs[theFile]
-            elif out == '!':
-                if args.quiet: print 'File ' + theFile + ' analysed and added to database!'
-                else: allDone.append('Completed: ' + theFile)
-                del subprocesses[theFile]; del outputs[theFile]
-            else:
-                ## If the subprocess returns any other character, its printing stuff to stdout that it shouldnt be. Most likely, it crashed and is printing an error :(
-                if args.quiet: print 'ERROR: File ' + theFile + ' failed for unknown reasons. It said: ' + out + str(handler.stdout.read())
-                else: allDone.append('FAILED: ' + theFile + ', run this file with "--debug" to find out why');
-                del subprocesses[theFile]; del outputs[theFile]
+            if out in ['0','1','2','3','4','5','6','7','8','9']: outputs[theFile][1] += int(out)
+            elif out == '#': outputs[theFile] = ['Calculating MD5         |',0]                                     ## Statuses are always
+            elif out == '|': outputs[theFile] = ['Calculating Statistics  |',0]                                     ## exactly 25 characters
+            elif out == '@': outputs[theFile] = ['Writing To Database     |',0]                                     ## in width and include
+            elif out == '$': outputs[theFile] = ['Postgres Table Indexing |',0]                                     ## the starting pipe "|"
+            elif out == '%': tidy('File ' + theFile + ' skipped as it is already in the database.')
+            elif out == '?': tidy('DATA ERROR: ' + theFile + ' aborted by SeQC. Rerun with --debug for more info.')
+            elif out == '!': tidy('Completed: ' + theFile)
+            else: tidy('SeQC ERROR: ' + theFile + ' failed, likely due to a bug in SeQC. Run with "--debug" for more info.')
 
+        ## Print some beautiful status bars ;)
+        progressBarSpace = int(terminalCols/2)                              ## Use half the screen for the progress bar and status.
+        fileNameSpace = terminalCols - progressBarSpace                     ## Use the rest for the file name (full path).
+        progressScaling = (progressBarSpace -27) / 100.                     ## -27 because we dont want the scaling factor to know about the status, arrow, or final pipe.
+        arrow = '' if arrow else '>'                                        ## '' is falsey, while '>' is truthy, so this toggles it.
         for theFile, storedOut in outputs.items():
-            left = str(str(theFile) + ': ').ljust(spaceFree)
-            right = str(str(str(storedOut)+arrow).ljust(123) + ' | ').rjust(termCols-spaceFree)
-            if len(storedOut) > 123: spaceFree = termCols-len(storedOut)-2 # spaceFree is how many columns we will let the filename/etc take up.
-            if args.quiet == False: print left[-spaceFree:] + right
+            if len(theFile) > fileNameSpace:
+                left = '<-- ' + (theFile + ': ')[-fileNameSpace+4:]         ## <-- to indicate the filename was truncated
+            else:
+                left = theFile.ljust(fileNameSpace)
+            right = (storedOut[0] + ('=' * int(storedOut[1] * progressScaling)) + arrow).ljust(progressBarSpace-1) + '|'
+            if not args.quiet: print left + right
 
-        if args.quiet == False:
+        if not args.quiet:
             for x in range(0,len(outputs)): sys.stdout.write('\033[A')  ## Put the cursor back up as many rows in the terminal as we have data files
-
         sys.stdout.flush()
-        if len(subprocesses) < int(args.cpu):
+
+        ## Run some more subprocesses if we need to:
+        if len(subprocesses) < args.cpu:
             try:
                 inputFile = usedInputs.pop(0);
                 subprocesses[inputFile] = doSeQC(inputFile)
             except IndexError: pass ## No more files to process!
-    for item in allDone: print item.ljust(termCols) ## print any outstanding messages.
-    if args.quiet == False:
-        for x in range(0,len(outputs)+1): print ''  ##  puts cursor at bottom
 
-
+    ## Finished processing data!
+    for item in allDone: print item.ljust(terminalCols) ## print out any outstanding messages.
+    if not args.quiet:
+        for x in range(0,len(outputs)+1): print ''  ## put the cursor at the bottom of the terminal.
 
     ## Due to the way SQLite is implimented, with only 1 process being able to write to the database at a time, indexing has to be done at the very end.
     ## Otherwize, the subprocesses will all have to wait while 1 process indexes, and this bottleneck slows things down considerably. It is not an issue
@@ -363,7 +392,7 @@ If you do not know what caused this error, please e-mail longinotto@immunbio.mpg
     if args.pguser == None:
         print 'All done calculating file statistics! Now creating indexes on your SQlite tables:'
         try:
-            con = sqlite3.connect(args.output + '.SeQC', timeout=120)
+            con = sqlite3.connect(args.output, timeout=120)
             cur = con.cursor()
             cur.execute("SELECT name FROM sqlite_master WHERE type='table';")   # get a list of all tables in our database
             rows = cur.fetchall()
@@ -386,6 +415,9 @@ If you do not know what caused this error, please e-mail longinotto@immunbio.mpg
             print '\nERROR: Something went wrong indexing the tables of the database. The exact error was:\n' + str(e) + '\nIf you do not know what caused this error, please e-mail longinotto@immunbio.mpg.de with the error message and I will help you :)\n'; exit()
         finally:
             if con: con.close()
+
+    ## That's it! That's the parent process taken care of. The rest of the python code is for the subprocesses that actually collect
+    ## the statistics from each file, and put them into the SQL database. Here we go...
     print '\nAll done! Have a lovely day :)\n'
     exit()
 
@@ -393,23 +425,15 @@ elif args.BAM or args.SAM:
     ## We are only ever here if we're running from a subprocess!
     inputFile = args.input[0]
 
-    ## pinger
-    ## This little class has two functions - .change() and .pong(), and its job is to report that status of the program via stdout, one character at a time.
-    ## The idea is that you run .change() when the programs starts doing something new, like MD5 hashing a file or analysing data, etc.
-    ## It requires a 'mode' value, which is a single character (string) which will be printed to stdout to tell the parent process we're doing something new.
-    ## It also accepts an optional 'total', which would be the number of things. Bytes in the file for MD5, or rows to add to a database, for example.
-    ## .pong() can then be put wherever your program could gather a status. On each block read for MD5ing, or after inserting a handful of rows into
-    ## a database, etc. It also can take an optional 'position' value, which is the position into the work relative to the total you set when running .change(). 
-    ## Pong will print out a number indicating the percentage of work done since the last % of work was printed.
+    ## I wrote this little class to be a generic reporter class that you can
+    ## just drop in to a loop and get back periodic % completion updates
     class pinger:
         def __init__(self,updateTime):
-            self.mode = None           # needed?
             self.total = None
             self.percent = None
             self.nextPing = None
             self.updateTime = updateTime
         def change(self,mode,total=1):
-            self.mode = str(mode)
             self.total = float(total) # float so divisions return accurate floats
             self.percent = 0
             self.nextPing = self.updateTime + time.time()
@@ -425,46 +449,51 @@ elif args.BAM or args.SAM:
                 self.nextPing = 1 + time.time()
     ping = pinger(1)
 
-    ## Get both MD5 hash and read count
+    ## Get both MD5 hash and read count at the same time. 
     def MD5andCount(inputFile,samtools):
+        ## We want to know the readcount of the BAM/SAM file to make status bars, but running samtools view -c takes an unacceptibly long time. MD5 however is very fast.
+        ## We can do both simultaniously, essentially requiring the same amount of time as running samtools -c on the file.
+        ## But we can go one better, by only passing the first X byte to samtools -c, and then estimating the size of the full file from that sample.
+        estimate = True
+        sizeInBytes = os.path.getsize(inputFile)
         pipe = subprocess.PIPE
-        readCounting = subprocess.Popen('"'+ samtools +'" view -c -', stdin=pipe, stdout=pipe, stderr=pipe, shell=True, executable='/bin/bash')
+        ## samtools doesn't print the count if the file is truncated, so we're stuck with this garbage:
+        if estimate: readCounting = subprocess.Popen('"'+ samtools +'" view -h - | "'+ samtools +'" view -c -',stderr=pipe,stdin=pipe,stdout=pipe,shell=True,executable='/bin/bash')
+        else:        readCounting = subprocess.Popen('"'+ samtools +'" view -c -',                             stderr=pipe,stdin=pipe,stdout=pipe,shell=True,executable='/bin/bash')
         md5 = hashlib.md5()
-        chunkSize = 128*md5.block_size
-        ping.change('#',os.path.getsize(inputFile))
+        chunkSize = 128 * md5.block_size
+        ping.change('#',sizeInBytes)
         with open(inputFile,'rb') as f: 
             for x,chunk in enumerate(iter(lambda: f.read(chunkSize), b'')): 
                 md5.update(chunk)
-                readCounting.stdin.write(chunk)
+                if not estimate: readCounting.stdin.write(chunk)
+                elif x < 1000:   readCounting.stdin.write(chunk)
                 ping.pong(x*chunkSize)
         readCounting.stdin.close()
         readCounting.wait()
-        return [int(readCounting.stdout.read()), md5.hexdigest()]
-
+        if estimate:
+            sample = int(readCounting.stdout.read())
+            bytesUsed = chunkSize * 1000.
+            readCount = int( (sample/bytesUsed) * sizeInBytes * 1.07 )
+        else:
+            readCount = int(readCounting.stdout.read())
+        return [ readCount , md5.hexdigest() ]
     totalReads, fileHash = MD5andCount(inputFile,args.samtools)
-
-    ## Used later to store the sample size as something humanly readable rather than a huge number of bytes.
-    def humanSize(num, suffix='B'):
-        for unit in [' ',' K',' M',' G',' T',' P',' E',' Z']:
-            if abs(num) < 1024.0:
-                return "%3.1f%s%s" % (num, unit, suffix)
-            num /= 1024.0
-        return "%.1f%s%s" % (num, ' Y', suffix)
 
     ## Now we check if any analyses have been performed on this sample before.
     ## If they have and --writeover is not set, we dont do the analysis again.
-    if args.pguser == None: con = sqlite3.connect(args.output + '.SeQC', timeout=120)
+    if args.pguser == None: con = sqlite3.connect(args.output, timeout=120)
     else:                   con = psycopg2.connect(dbname=args.output, user=args.pguser, host=args.pghost, password=args.pgpass)
     cur = con.cursor()
     ## We have two options to find out if the table exists - check the SQL database itself, or check the INFO table. Which is 'more correct'? I think checking the INFO table
-    ## as if it's not there, it doesn't matter whats already in the database, we're expected to add it in over the top - but below is the code to check the database directly
-    ##cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='" + fileHash + "';")                                                             ## SQLite
+    ## is, as if it's not there, it doesn't matter whats already in the database, we're expected to add it in over the top - but below is the code to check the database directly
+    ## cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='" + fileHash + "';")                                                            ## SQLite
     ## cur.execute("SELECT 1 FROM pg_catalog.pg_class WHERE relkind = 'r' AND relname = '" + args.output + "' AND pg_catalog.pg_table_is_visible(oid) LIMIT 1") ## Postgres
-    cur.execute("SELECT analyses,'yolo' FROM INFO WHERE \"sampleHash\"='" + fileHash + "';")
-    result = cur.fetchone() # we return a yolo because if you just ask for 1 column, SQLite returns a tuple but Postgres a string. With two fields they both return tuples.
+    cur.execute("SELECT analyses, 'Robert\"); DROP TABLE students; --' FROM INFO WHERE \"sampleHash\"='" + fileHash + "';")
+    result = cur.fetchone() # we return a "little bobby tables" because if you just ask for 1 column, SQLite returns a tuple but Postgres a string. With two fields they both return tuples.
     if result != None:
         existingAnalyses = json.loads(result[0])
-        if args.writeover == False:
+        if not args.writeover:
             skip = set()
             for analysis in args.analysis:
                 if analysis in [ tuple(existingAnalysis['stats']) for existingAnalysis in existingAnalyses ]: skip.add(analysis)
@@ -476,15 +505,15 @@ elif args.BAM or args.SAM:
     if cur: cur.close()
     if con: con.close()
 
+
+    ## Finally, we now start analyzing the data...
     ping.change('|',totalReads)
-
     data = [collections.defaultdict(int) for x in range(0,len(args.analysis))] # a list of dictionaries, one for every analysis group.
-
     if args.SAM:
         for stat in availableStats:
             availableStats[stat].process = availableStats[stat].SAM
         if args.SAM == 'stdin':
-            sys.argv = ''  ## Done so fileinput takes stdin and not args.
+            sys.argv = '' ## Done so fileinput takes stdin and not args.
             inputData = csv.reader(fileinput.input(), delimiter='\t')
         else: 
             inputData = csv.reader(fileinput.input(inputFile), delimiter='\t') # fileinput also can read a file on disk
@@ -511,7 +540,7 @@ elif args.BAM or args.SAM:
     ping.change('@',len(args.analysis))
 
     if args.pguser == None:
-        con = sqlite3.connect(args.output + '.SeQC', timeout=120)
+        con = sqlite3.connect(args.output, timeout=120)
         con.isolation_level = 'EXCLUSIVE'
         con.execute('BEGIN EXCLUSIVE')
         cur = con.cursor()
@@ -580,7 +609,7 @@ elif args.BAM or args.SAM:
         filePath = os.path.abspath(args.input[0])[:-len(fileName)]
         creationTime = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(os.path.getmtime(args.input[0])))
         analysisTime = str(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')) ## Year-Month-Day Hour:Minute:Second
-        sampleSize = humanSize(os.path.getsize(args.input[0]))
+        sampleSize = os.path.getsize(args.input[0])
         tableSize = len(data[a])
         header = json.dumps(header)
         analysisJSON.append({
@@ -618,10 +647,10 @@ elif args.BAM or args.SAM:
     ## INFO TABLE ADDITION / MODIFICATION
     if len(existingAnalyses) == 0:
         analysisJSON = json.dumps(analysisJSON)
-        if args.pguser == None: placeholder = '(?, ?, ?, ?, ?, ?, ?, ?, ? )'
-        else:                   placeholder = '(%s,%s,%s,%s,%s,%s,%s,%s,%s)'
+        if args.pguser == None: placeholder = '(?, ?, ?, ?, ?, ?, ?, ? )'
+        else:                   placeholder = '(%s,%s,%s,%s,%s,%s,%s,%s)'
         cur.execute('INSERT INTO "INFO" ("sampleHash","analyses",    "sampleFileName","samplePath","creationTime","sampleSize","analysisTime", "header") VALUES ' + placeholder,
-                                        ( fileHash,    analysisJSON,  fileName,        filePath,    creationTime,  sampleSize,  analysisTime, header )                          )
+                                        ( fileHash,    analysisJSON,  fileName,        filePath,    creationTime,  sampleSize,  analysisTime,   header )                        )
     else:
         ## An INFO row already exists for this sample...
         for existingAnalysis in existingAnalyses:
