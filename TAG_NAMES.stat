@@ -1,0 +1,10 @@
+class stat:
+    def __init__(self,INFO):
+        self.DESCRIPTION        =  ['Optional read-level tag names, space delimited and sorted','MD NM XA']
+        self.LINKABLE           =  True
+        self.SQL                =  'TEXT'
+        if   INFO['fileReader'] == 'sam':       self.METHOD = 'TAG_NAMES = " ".join(sorted([ x.split(":")[0] for x in read[11:] ]))'
+        elif INFO['fileReader'] == 'pysam':     self.METHOD = 'TAG_NAMES = " ".join(sorted([ x[0] for x in read.get_tags()    ]))'
+        elif INFO['fileReader'] == 'htspython': self.METHOD = 'TAG_NAMES = " ".join(sorted([ x[0] for x in read.tags         ]))'
+        else:                                   self.METHOD =  None
+addStat('TAG_NAMES',[])

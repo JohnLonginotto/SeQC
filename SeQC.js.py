@@ -4,9 +4,8 @@ version = 1//1 ; ''' These two lines are
 
 # The first half of this program is written in python. It will count reads in BAM/SAM files using different metrics (per chromosome, per read length, etc).
 # To learn more visit http://ac.gt/seqc or run "python ./SeQC.js.py --help"
-# The second half of this program is written in JavaScript for using in Node.js. It will create a webserver that can interact with the database created by 
+# The second half of this program is written in JavaScript for use in Node.js. It will create a webserver that can interact with the database created by 
 # the Python code. You can get more information via http://ac.gt/seqc, or run "node ./SeQC.js.py --help"
-
 
 ## One day i'll get around to putting this up on pypi and/or npm, but for now here's instructions on how to do things on OSX:
 
@@ -26,10 +25,12 @@ version = 1//1 ; ''' These two lines are
 
 ## Import required librarys:
 import os
+import re
 import sys
 import csv
 import json
 import time
+import types
 import urllib
 import getpass
 import sqlite3
@@ -44,78 +45,285 @@ import collections
 # Import optional librarys:
 try: import pysam ; pysamInstalled = True
 except: pysamInstalled = False
+try: import hts ; import cffi; ffi = cffi.FFI() ; htspythonInstalled = True
+except: pysamInstalled = False
 try: import psycopg2 ; postgresInstalled = True
-except: postgresInstalled = False
+except: postgresInstalled = False  
+
+###########################
+## Define built-in stats ##
+##########################################################################################################
+##                                                                                                      ##
+## The first thing we do is define our built-in stats. The built-ins are all simple methods to get data ##
+## out of the BAM/SAM that already exists. For example chromosome names, template length, CIGAR, etc.   ##
+## The names used for each of the built-in stats is exactly the same name as defined by the SAM spec.   ##
+## The big exception to all this is FLAG. I refuse to be part of the madness that is talking about SAM  ##
+## flags by their hexidecimal sum. Who on earth thought that was a good idea!? I get that is how it is  ##
+## stored in the BAM file, but it is akin to talking about DNA as the sum of its 2-bit binary. I'm sure ##
+## that even the authors of samtools couldn't tell you what '0x4d3' or its integer equivilent '1235'    ##
+## translates to. However, once you know alphabetic notation for flags, 'ABcdEfGHijKl' can be parsed by ##
+## humans. Take 2 minutes to look at http://ac.gt/flags and be done with -f and -F forever.             ##
+##                                                                                                      ##
+## Don't forget - the beauty of SeQC is in how you can easily combine built-in stats and your own code  ##
+## to generate new stats in just 2 or 3 lines of python. Reading the SAM/BAM files, parallelization,    ##
+## dependency loading, database creation, and vizulization is all taken care of by SeQC. So if you are  ##
+## writing new stats, please visit http://ac.gt/seqc/stats for info on how to write stats efficiently.  ##
+## It explains how to use dependencies, the "hidden built-ins", and many example stats.                 ##
+##                                                                                                      ##
+##########################################################################################################
+pass
+
+#######################
+## Fetch local stats ##
+##########################################################################################################
+##                                                                                                      ##
+## Data that is not already in the BAM/SAM file, such as GC% per read (which has to be calculated, and  ##
+## although it might seem obvious, there are actually multiple non-compatible ways to calculate it) are ##
+## kept in separate ".stat" files in the same directory as SeQC for simplicity. This is done so people  ##
+## can very quickly see exactly how a stat is calculated. External modules take the same format as the  ##
+## built-in modules, and it is highly recommended that you use dependencies rather than use pysam or    ##
+## hts-python primitives (e.g. don't use line.seq to get the DNA, rather set SEQ as a dependency and it ##
+## will be much faster!                                                                                 ##
+##                                                                                                      ##
+##########################################################################################################
+
+INFO = { 'fileReader': None } # This holds information that a stat module might need to initialize
+availableStats = {}           # This is where all the modular stats end up.
+def addStat(stat_name,compatible):
+    # Do some very basic checks
+    if type(stat_name)  is not str:       print 'ERROR: The name of the module from file ' + str(thisFile) + ' is not a string? (this should be the first value for addStat)'; exit()
+    if type(stat) is not types.ClassType: print 'ERROR: The module ' + stat_name + ' is not a class? (this should be the second value for addStat)'; exit()
+    if type(compatible) is not list:      print 'ERROR: The module ' + stat_name + ' does not provide a lost of other compatible modules. (this should be the third value for addStat)'; exit()
+    for md5 in compatible:
+        if not re.match(r"[a-f\d]{32}", md5.lower()): print 'ERROR: The MD5 string "' + md5 + '" in module ' + stat_name + ' is not valid MD5.'; exit()
+    # Hash the module and init a class object
+    with open(thisFile,'rb') as f:
+        method = re.sub("addStat.*",'', f.read(), flags=re.MULTILINE|re.DOTALL)
+        md5 = hashlib.md5(method)
+        if stat_name not in availableStats:
+            availableStats[stat_name] = {
+                'compatible': json.dumps(compatible),
+                'class':      stat, 
+                'hash':       md5.hexdigest(),
+                'init':       stat(INFO),
+                'method':     method,
+                'path':       thisFile
+            }
+        else:
+            print '\nERROR: There appears to be two stats with the same name ("' + stat_name + '")\n'
+            print availableStats[stat_name]['path'],':'
+            print availableStats[stat_name]['method']
+            print thisFile,':'
+            print method, '\n Choose your favorite one (set the older as compatible if it is), or rename one. This will not effect the MD5.'
+            exit()
 
 ## Import stat modules from SeQC's directory:
-availableStats = {}
 SeQC = os.path.abspath(__file__)                          ## Path to SeQC.js.py itself. Used for spawning new processes.
 for potentialStat in os.listdir(os.path.dirname(SeQC)):
         thisFile = os.path.join(os.path.dirname(SeQC), potentialStat)
         if thisFile.endswith('.stat'):
             execfile(thisFile)                            ## I should upgrade this to a proper plugin/module manager, but this works fine for now. 
 
+##########################
+## Fetch external stats ##
+##########################################################################################################
+##                                                                                                      ##
+## Get data from the database we're writing to. Perhaps in the future some way to get stats from one    ##
+##  database but write data to somewhere else? Like a stat directory db.                                ##
+## The danger is that stats can run any code they like (good thing) which could be rm -rf / (bad thing) ##
+## and just running SeQC with a stat loaded is enough. The security implications are not so severe if   ##
+## stat files are coming from the local directory, but from the internet it could be ...                ##
+##                                                                                                      ##
+##########################################################################################################
+pass
+
+########################
+## Check stat modules ##
+##########################################################################################################
+##                                                                                                      ##
+## Check to make sure all the modules are in the right format, have all the required parameters, MD5'd  ##
+## etc, etc.                                                                                            ##
+##                                                                                                      ##
+##########################################################################################################
+
+for statName,statData in sorted(availableStats.items()):
+    ## Check stats for required values:
+    stat = statData['init']
+    for param in [ ('DESCRIPTION',list), ('LINKABLE',bool), ('SQL',str), ('METHOD',str) ]:
+        if not hasattr(stat,param[0]): print 'ERROR: The module ' + statName + ' doesnt have the required parameter ' + param ; exit()
+        requiredValue = getattr(stat,param[0])
+        if type(requiredValue) is not param[1]:
+            if param[0] == 'METHOD' and INFO['fileReader'] == None and requiredValue is None: pass # The only exception.
+            else: print 'ERROR: The module ' + statName + ' has parameter ' + param[0] + ' but its not ' + str(param[1]) ; exit()
+
+    # Stat name:
+    if len(statName) > 10: print 'ERROR: The name of stat ' + statName + ' is too long! Please keep it to 10 or less characters! :('; exit()
+
+    # DESCRIPTION:
+    if len(stat.DESCRIPTION) != 2: print 'ERROR: The DESCRIPTION for stat ' + statName + ' needs two values, an explanation and an output example.'; exit()
+    if 60 < len(stat.DESCRIPTION[0]): print 'ERROR: The explination for stat ' + statName + ' needs to be under 70 characters. If this is not possible, put in a URL!'; exit()
+    if 30 < len(stat.DESCRIPTION[1]): print 'ERROR: The example output for stat ' + statName + ' needs to be under 30 characters. Put N/A if its way too long, or use ellipses..'; exit()
+
+    # SQL:
+    if stat.SQL not in ['TEXT','INT','REAL'] and stat.LINKABLE == True:
+        if stat.SQL == 'JSON': print 'ERROR: The stat ' + statName + ' uses JSON as the SQL type, but also claims to be LINKABLE (which it cannot be).'; exit()
+        print 'ERROR: The stat ' + statName + ' claims to be a linkable stat, however its .SQL value is not "TEXT", "INT", or "REAL".'; exit()
+
+    # METHOD:
+    # If this becomes a function other than an object, this might change by giving it an input value and running it and see if the output is hashable for LINKABLE stated
+
+    # index:
+    if hasattr(stat,'index') and stat.index is not False and stat.index is not None:
+        if stat.LINKABLE:
+            print 'ERROR: The module ' + statName + ' is LINKABLE but also has a value for the index. Indexing for linked stats is done by SeQC. Plese delete the index parameter, or set LINKABLE to False.'; exit()
+        else:
+            if type(stat.index) is not str: print 'ERROR: The value for self.index in module ' + statName + ' must be a string!'; exit()
+            # We could do checks here for things like "CREATE INDEX... ", but actually it might be better to let things be more open for the users.
+
+    # viz:
+    if hasattr(stat,'viz') and stat.viz is not False and stat.viz is not None:
+        if type(stat.viz) is not list or not (0 < len(stat.viz) < 3): print 'ERROR: The value for viz in module ' + statName + ' must be a list, with 1 or 2 values!'; exit()
+        if type(stat.viz[0]) is not str: print 'ERROR: The first value for the viz parameter in module ' + statName + ' is not a string, therefore it is not a name!'; exit()
+        if len(stat.viz) is 2 and (type(stat.viz[1]) is not str and type(stat.viz[1]) is not False and stat.viz[1] is not None): 
+            print 'ERROR: The code for the viz parameter in module ' + statName + ' must be a string!'; exit()
+
+    # dependencies:
+    if hasattr(stat,'dependencies') and stat.dependencies is not None and stat.dependencies is not False:
+        if type(stat.dependencies) is not list: print 'ERROR: The value for dependencies in module ' + statName + ' must be None or a list!'; exit()
+        for dependency in stat.dependencies:
+            if dependency not in availableStats: print 'ERROR: The dependency ' + str(dependency) + ' in module ' + statName + ' is not know to SeQC. Please add it to the local directory!'
+
+    # before
+    if hasattr(stat,'before') and getattr(stat,'dependencies',None) is not None and stat.dependencies is not False:
+        if type(stat.dependencies) is not str: print 'ERROR: The value for self.before in module ' + statName + ' must be None or a string!'; exit() 
+
+    # after
+    if hasattr(stat,'after') and getattr(stat,'dependencies',None) is not None and stat.dependencies is not False:
+        if type(stat.dependencies) is not str: print 'ERROR: The value for self.after in module ' + statName + ' must be None or a string!'; exit() 
+
+## Create a dependency graph:
+dependencyGraph = {}
+class CyclicDependencies(Exception): pass
+def sort_dependencies(all_modules):
+    post_order = []
+    tree_edges = {}
+    for fromNode,toNodes in all_modules.items():
+        if fromNode not in tree_edges:
+            tree_edges[fromNode] = 'root'
+            for toNode in toNodes:
+                if toNode not in tree_edges:
+                    try: post_order += get_posts(fromNode,toNode,tree_edges)
+                    except CyclicDependencies as e: print e; exit()
+            post_order.append(fromNode)
+    return post_order[::-1] # Order generated is actually in reverse, since this is a depth-first algorithum.
+def get_posts(fromNode,toNode,tree_edges):
+    post_order = []
+    tree_edges[toNode] = fromNode
+    for dependency in all_modules[toNode]:
+        if dependency not in tree_edges:
+            post_order += get_posts(toNode,dependency,tree_edges)
+        else:
+            parent = tree_edges[toNode]
+            while parent != 'root':
+                if parent == dependency:
+                    raise CyclicDependencies('ERROR: Modules ' + dependency + ' and ' + toNode + ' have cyclic dependencies!')
+                parent = tree_edges[parent]
+    return post_order + [toNode]
+
+for statName in availableStats:
+    stat = availableStats[statName]['init']
+    if hasattr(stat,'dependencies') and type(stat.dependencies) is list :
+        dependencyGraph[statName] = stat.dependencies
+    else:
+        dependencyGraph[statName] = []
+topological_order = sort_dependencies(dependencyGraph) # This is the order dependencies must be run in
+
+
+helpText = ''
+for statName,statData in sorted(availableStats.items()):
+    stat = statData['init']
+    helpText += statName.ljust(10) + ' | ' + stat.DESCRIPTION[0].ljust(60) + ' | ' + stat.DESCRIPTION[1] + '\n'
+
 ## Parse user-supplied command line options:
 parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
     description="Put in multiple BAM/SAM files, get out an SQL database of read statistics.")
-parser.add_argument("-a", "--analysis", nargs='+', metavar='', action='append',
+parser.add_argument("--analysis", nargs='+', metavar='', action='append',
     help='''Optional. One or more statistic to gather.
-Eg. "SeQC -a gc type -a tlen" would generate three stats: gc and type (linked) and tlen (unlinked).
+Default is to do "--analysis CHR TYPE FLAG RGID GC --analysis TLEN" \n
 Currently avalible stat names:
-''' + '\n'.join(availableStats.keys()) + '''
-Default is to do them all (linked)''')
-parser.add_argument("--samtools", default='samtools', metavar='/path/to/samtools', 
+''' + helpText + '\n')
+parser.add_argument("--samtools", default='samtools', metavar='', 
     help="Optional until it isn't. Path to samtools if it's needed and cannot be found.")
-parser.add_argument("-i", "--input", nargs='+', metavar='file',
+parser.add_argument("--input", nargs='+', metavar='',
     help='Required. One or more SAM (and/or BAM) files to analyse.')
-parser.add_argument("-o", "--output", default='myProject.SeQC', metavar='',
+parser.add_argument("--output", default='myProject.SeQC', metavar='',
     help='Optional. Name of output database (or path for SQLite). Default is "myProject".')
-parser.add_argument("-q", '--quiet', action='store_true',
+parser.add_argument("--quiet", action='store_true',
     help='Optional. No status bars in output. Good for logs, bad for humans.')
-parser.add_argument("-pu", "--pguser", metavar='',
+parser.add_argument("--pguser", metavar='',
     help="Required if using Postgres. User account name.",)
-parser.add_argument("-pp", "--pgpass", metavar='',
+parser.add_argument("--pgpass", metavar='',
     help="Optional. Password of --pguser.")
-parser.add_argument("-ph", "--pghost", default="localhost", metavar='',
+parser.add_argument("--pghost", default="localhost", metavar='',
     help="Optional. Hostname of postgres database. Default is localhost.")
-parser.add_argument("--cpu", default=2, metavar='n', type=int,
+parser.add_argument("--cpu", default=2, metavar='', type=int,
     help="Optional. Number of processes/cores you want to use. Default is 2.")
+parser.add_argument("--md5", action='store_true',
+    help="Optional. Returns the MD5 checksums of all loaded modules (as SeQC sees them) and exits.")
 parser.add_argument('--writeover', action='store_true',
     help="Optional. Will write over old data even if inputs/analyses are identical")
 parser.add_argument("--debug", action='store_true',
     help="To err is human; to debug, divine.")
-parser.add_argument("--SAM", help=argparse.SUPPRESS)                        # Used internally to tell subprocesses we are reading SAM. Set to either 'stdin' or 'file'.
-parser.add_argument("--BAM", action="store_true", help=argparse.SUPPRESS)   # Used internally to tell subprocesses we reading directly via pysam or htspython.
+parser.add_argument("--SAM", help=argparse.SUPPRESS)   # Used internally to tell subprocesses we are reading SAM. Set to either 'stdin' or 'file'.
+parser.add_argument("--BAM", help=argparse.SUPPRESS)   # Used internally to tell subprocesses we reading directly via pysam or htspython.
 args = parser.parse_args()
 
-## Normalize user analysis arguments:
+## Print MD5s (without anything after the addStat) to make registering other modules as compatible easier.
+if args.md5:
+    for stat_name,stat in availableStats.items():
+        print 'Stat Name:'.rjust(16), stat_name
+        print 'Hash:'.rjust(16),stat['hash']
+        print 'Path:'.rjust(16),stat['path']
+        print 'Compatible With:'.rjust(16),stat['compatible'],'\n';
+    exit()
+
+## It takes your stats and returns all stats (so, includes the dependancies, and the dependancies of dependancies..)
+def get_all_modules_to_run(stat_name):
+    if hasattr(availableStats[stat_name],'dependencies'):
+        immediate_dependencies = set(availableStats[stat_name].dependencies)
+        more_dependencies = set()
+        for dependency in immediate_dependencies:
+            more_dependencies.update(get_dependencies(dependency))
+        immediate_dependencies.add(stat_name)
+        return tuple(immediate_dependencies | more_dependencies)
+    else: return (stat_name,)
+
+## "Sanitize" user analysis arguments:
 if args.analysis is not None:
+    if not args.SAM and not args.BAM: 
+        print '   [ ' + str(len(availableStats)) + ' Modules Loaded! ]'
     # We make each linked group of stats a set, before converting to a tuple, in the event that the user adds the same stat twice, eg. -a gc gc becomes just (gc).
     # We also sort by stat name in each linked group of stats so "-a tlen gc" becomes (gc,tlen).
-    # We then put these tuples into a set, so that "-a gc tlen -a tlen gc" would become just ((gc,tlen)).
+    # We then put these tuples into a set, so that "-a gc tlen -a tlen gc" would become just ((gc,tlen)), as a form of redundancy checking.
     # Finally we then put all these sorted tuples into a sorted list. ~ phew ~
+    allGroups = set()
     allAnalyses = set()
     for linkedGroup in args.analysis:
         linkedGroup = set(linkedGroup)
         for stat in linkedGroup:
-            if stat not in availableStats.keys(): print '''
-            ERROR: I do not know how to calculate the statistic "''' + stat + '''". Are you sure you typed it right? (case-sensitive)
-            If the .stat file for this statistic is not in the same directory as SeQC, you may need to download it from http://ac.gt/seqc
-            '''; exit()
-        allAnalyses.add(tuple(sorted(linkedGroup)))
-    args.analysis = sorted(allAnalyses)                         # A sorted list of sorted tuples
+            if stat not in availableStats.keys():
+                print '\nERROR: I do not know how to calculate the statistic: ' + stat
+                print 'If the .stat file for this statistic is not in the same directory as SeQC, you may need to download it from http://ac.gt/seqc\n'; exit()
+            allAnalyses.update(get_all_modules_to_run(stat)) # Recurses all dependancies too.
+        allGroups.add(tuple(sorted(linkedGroup)))               # sorted returns a list but we need a hashable tuple.
+    args.analysis = sorted(allGroups)                           # A sorted list of sorted tuples.
+    sorted_analyses = []                                        # This is a non-redundant list of the analyses used (and there dependancies), in the order they need to be run. 
+    for analysis in topological_order:
+        if analysis in allAnalyses:
+            sorted_analyses.append(analysis)
 else:
-    args.analysis = [tuple(sorted(availableStats.keys()))]      # Also a list, but of just 1 tuple - containing all the possible stats (sorted)
-
-## This function checks to see if a fine is binary (BAM) or ASCII (SAM) by looking for a "null byte" (0x00) in the first 20Mb of the file.
-def bamCheck(fileName):
-    with open(fileName, 'rb') as xamfile:
-        for i in range(10): # 10 tries to find a null byte in 2Mb chunks.
-            section = xamfile.read(2048)
-            if '\0' in section:            return True  # BAM file.
-            if len(section) < 2048:
-                if i == 0 and not section: return None  # Empty file.
-                else:                      return False # SAM file.
+    args.analysis   = [('CHR', 'TYPE', 'FLAG', 'GC'),('TLEN')]    # The default stats and grouping.
+    sorted_analyses = [ 'CHR', 'TYPE', 'FLAG', 'GC', 'TLEN'  ]
 
 ## args.SAM and args.BAM are only ever present in subprocesses. The main parent python code (executed by the user) starts below:
 if not args.SAM and not args.BAM:
@@ -135,7 +343,8 @@ Visit http://ac.gt/seqc for more details :)
     if not args.input: print '''
 Hello :)
 You must supply at least one SAM or BAM file, in the format "SeQC.js.py --input ./somefile1 ./somefile2 ... etc"
-If this is your first time using SeQC, try "SeQC.js.py --help" or visit http://ac.gt/seqc/ for usage infomation.'''; exit()
+If this is your first time using SeQC, try "SeQC.js.py --help" or visit http://ac.gt/seqc/ for usage infomation.
+'''; exit()
 
     ## Determine if the user is writing to a SQLite or Postgres database, and determine that the provided details work:
     if args.pguser == None:
@@ -144,14 +353,14 @@ If this is your first time using SeQC, try "SeQC.js.py --help" or visit http://a
 ERROR: You have provided an existing DIRECTORY for your output, but I need a file name!
 Please use the exact name of the output file you want (you can always rename it later)'''; exit()
 
-        if os.path.isfile(args.output): print '   [ Output file already exists ]'; newDB = False
-        else:                           print '   [ Output file does not exist ]'; newDB = True
+        if os.path.isfile(args.output): print '   [ Output file already exists ]'
+        else:                           print '   [ Output file does not exist ]'
     else:
         print '   [ Using Postgres for output ]'
         if postgresInstalled:
             if args.pgpass == None:
                 if args.debug: 
-                    password = 'SOME_SECRET_PASSWORD' # we dont want --debug to print passwords! Since --debug on the parent never executes jobs anyway, this is fine.
+                    password = 'PASSWORD_HIDDEN' # we dont want --debug to print passwords! Since --debug on the parent never executes jobs anyway, this is fine.
                 else:
                     if sys.stdin.isatty():
                         password = getpass.getpass('Enter password for account ' + args.pguser + ' : ')
@@ -181,82 +390,160 @@ Please install it via "pip install --user psycopg2"'''; exit()
     if args.pguser != None:
         explicitStats += ' --pguser "' + args.pguser + '" --pgpass "' + password + '" --pghost "' + args.pghost + '"'
 
+    ## This function checks to see if a file is binary (BAM) or ASCII (SAM) by looking for a "null byte" (0x00) in the first 20Mb of the file.
+    def bamCheck(fileName):
+        with open(fileName, 'rb') as xamfile:
+            for i in range(10): # 10 tries to find a null byte in 2Mb chunks.
+                section = xamfile.read(2048)
+                if '\0' in section:            return True  # BAM file.
+                if len(section) < 2048:
+                    if i == 0 and not section: return None  # Empty file.
+                    else:                      return False # SAM file.
+
     ## We only need samtools if we have one or more BAM files. Here we check all files with the bamCheck function, 
     ## and if a binary file is found, we check if we can find/execute samtools.
+    gotSAM,gotBAM,samtoolsInstalled = False, False, None # If user gives lots of files, we could have both.
     DEVNULL = open(os.devnull, 'wb')
     if args.debug: STDERR = subprocess.STDOUT
     else: STDERR = DEVNULL
     for inFile in usedInputs:
-        ##### THIS IS WHERE LOG.BIO SUPPORT FOR PRE-HASHING WOULD GO (GOLD SUPPORT - PLATINUM REQUIRES PROGRAM TO MD5 as it reads file).
         if bamCheck(inFile):
+            gotBAM = True
             if not args.samtools:
                 exitcode = subprocess.call('samtools', stdout=DEVNULL, stderr=DEVNULL, shell=True)
-                if exitcode != 1: # Samtools is weird, in that calling it with no parameters returns exitcode 1 rather than 0.
-                    print '''
-ERROR: You have tried to calculate statistics on a BAM file, but you have not provided 
-a path to samtools (and "samtools" from the command line does not seem to work...)
-Please specify a path to samtools with the --samtools parameter :)'''; exit()
-                else: args.samtools = 'samtools'
+                if exitcode != 1: samtoolsInstalled = False # Samtools is weird, in that calling it with no parameters returns exitcode 1 rather than 0.
+                else: args.samtools = 'samtools'; samtoolsInstalled = True
             else:
                 code = subprocess.call(args.samtools, stdout=DEVNULL, stderr=DEVNULL, shell=True)
-                if code != 1: print '''
-ERROR: You have tried to calculate statistics on a BAM file, but the path to samtools you have provided:
-("' + args.samtools + '") does not work :(
-Please check it and try again :)\n'''; exit()
-            if not pysamInstalled: print 'INFO: You should install pysam if you can. It makes everything a lot faster!'
-            break # As soon as we have 1 BAM file, we do the above checks - but only once.
+                if code != 1:
+                    print 'ERROR: You have tried to calculate statistics on a BAM file, but the path to samtools you have provided:'
+                    print args.samtools,' does not work :('
+                    exit()
+                else: samtoolsInstalled = True
+    if gotBAM:
+        if not htspythonInstalled: print 'INFO: You should install htspython if you can. It is a lot faster than pysam, and works with pypy!'
+        elif not pysamInstalled:   print 'INFO: You should install pysam if you can, or even better, htspython. They make everything a LOT faster!'
 
-    ## This function fires off the subprocesses which actually analyse the input BAM/SAM data.
-    ## It will be called in a loop later as we process the input files.
-    def doSeQC(inputFile):
-        if bamCheck(inputFile):
+    ## Check that all the used stats have a method for this kind of data:
+    blocking = {'sam':False,'pysam':False,'htspython':False}
+    for stat in sorted_analyses:
+        if gotSAM:
+            # Here we can only use the sam fileReader. Perhaps I should extend this to allow for pysam/hts if they can work on SAM files... hm..
+            availableStats[stat]['init'] =  availableStats[stat]['class']({'fileReader':'sam'}) # re-init with the sam fileReader
+            if availableStats[stat]['init'].METHOD == None: blocking['sam'] = stat
+        if gotBAM:
+            if htspythonInstalled:
+                availableStats[stat]['init'] = availableStats[stat]['class']({'fileReader':'htspython'}) # re-init with htspython
+                if availableStats[stat]['init'].METHOD == None: blocking['htspython'] = stat # Since we cannot use it.
+            else: blocking['htspython'] = stat
             if pysamInstalled:
-                subprocessCommand = 'python "' + SeQC + '" --input "' + inputFile + '" --BAM --output "' + args.output + '" ' + explicitStats
-                if args.debug: print subprocessCommand # Dont run it, just print what would have been run.
-                else: return subprocess.Popen(subprocessCommand, stdout=subprocess.PIPE, stderr=STDERR, shell=True, executable='/bin/bash')
-            else:
-                subprocessCommand = '"' + args.samtools + '" view "' + inputFile + '" | python "' +  SeQC + '" --input "' + inputFile + '" --output "' + args.output + '" --SAM stdin ' + explicitStats
-                if args.debug: print subprocessCommand
-                else: return subprocess.Popen(subprocessCommand, stdout=subprocess.PIPE, stderr=STDERR, shell=True, executable='/bin/bash')
-        else:
-            subprocessCommand = 'python "' + SeQC + '" --input "' + inputFile + '" --SAM file --output "' + args.output + '" ' + explicitStats
-            if args.debug: print subprocessCommand
-            else: return subprocess.Popen(subprocessCommand, stdout=subprocess.PIPE, stderr=STDERR, shell=True, executable='/bin/bash')
+                availableStats[stat]['init'] = availableStats[stat]['class']({'fileReader':'pysam'}) # re-init with pysam
+                if availableStats[stat]['init'].METHOD == None: blocking['pysam'] = stat
+            else: blocking['pysam'] = stat
+            if samtoolsInstalled:
+                availableStats[stat]['init'] = availableStats[stat]['class']({'fileReader':'sam'}) # re-init with sam
+                if availableStats[stat]['init'].METHOD == None: blocking['sam'] = stat
+            else:blocking['sam'] = stat
+    if all(blocking.values()):
+        print '\nERROR: The combination of stats you have selected can not be gathered, because there is no method for '
+        print 'reading the file (sam/pysam/htspython) that all the stats can use, specifically:'
+        for x,y in blocking.items(): print y,'does not work with',x
+        print '\nEither hack on the stat modules to get them to work for these other file readers, or if you are not linking these conflicting stats, run SeQC multiple times.\n'
+        exit()
+    elif not blocking['htspython']: INFO = {'fileReader':'htspython'}
+    elif not blocking['pysam']:     INFO = {'fileReader':'pysam'}
+    elif not blocking['sam']: INFO = {'fileReader':'sam'}
+    print '   [    Using',INFO['fileReader'],'   ]'
 
     ## The table schema for the INFO table. 
-    ## The INFO table stores metadata on all the analysed files, as well as 
-    ## which stats (or linked groups of stats) have been collected for each file.
-    ## I am always open to more suggestion on metadata we should be collecting!
+    ## The INFO table stores metadata on all the analysed files, as well as which stats (or linked groups of stats) have been collected for each file.
+    ## It is basically 1 row per analysed BAM/SAM file (or rather, per input file MD5 checksum).
+    ## Regarding data privacy, SeQC make no distinction between users accessing data - be it in-house, or across the globe. It also makes no distinction between
+    ## users connecting directly, and users finding your database through the public listings (if you decide to make your data publicly available).
+    ## SeQC does allow you to hide any INFO column from users via SERVER settings. filename and path for example are quite popular ones to hide. You cannot, however,
+    ## hide *some* of the data in json_stats. It's all or nothing. This is why any data going into json_stats is always gathered explicitly.
     infoTableCreation = '''CREATE TABLE "INFO" (
-                            "sampleHash" TEXT PRIMARY KEY,
-                            "analyses" TEXT,
-                            "sampleFileName" TEXT, 
-                            "samplePath" TEXT, 
-                            "creationTime" TEXT, 
-                            "sampleSize" TEXT, 
-                            "analysisTime" TEXT, 
-                            "header" TEXT 
+                            "hash"          TEXT PRIMARY KEY,
+                            "path"          TEXT,
+                            "size"          TEXT,
+                            "header"        TEXT
+                            "analyses"      TEXT,
+                            "filename"      TEXT,
+                            "json_stats"    TEXT,
+                            "last_updated"  TEXT,
+                            "creation_time" TEXT
                         )'''
+    ## The data gets added to INFO by subprocesses (after all stats for that input file have been calculated).
+
+    ## The table schema for the SERVER table. 
+    ## Very simple key-value storage. Will contain information on what the landing page should look like, who can access the webserver, etc.
+    ## Data here should never leave the server itself. If it already exists in the output database we do nothing.
+    serverTableCreation = '''CREATE TABLE "SERVER" (
+                            "key"   TEXT PRIMARY KEY,
+                            "value" TEXT
+                        )'''
+    serverTableData   = [
+                            ('public'   , 'False'    ),
+                            ('listen_on', '8080'     ),
+                            ('bind_to'  , '127.0.0.1')
+                        ]
+
+    ## The table schema for the METHOD table. It stores the code for both stats AND visualization code.
+    ## Regarding stat data, in order to make sure different users can write their own stats and share/compare the results with one another, we need a
+    ## way to make sure that the stats calculated differently are not compared side-by-side without some sort of warning (even if they have the same name). 
+    ## We do this by MD5ing the code that generates the stat (but after cutting out it's self.COMPATIBLE data and sticking it in the compatible column).
+    ## We do essentially the same thing with the visualization code, except this code does not have compatibility issues.
+    ## Please bear in mind that if you share your data, you also share the methods to create it. 
+    methodTableCreation = '''CREATE TABLE "METHOD" (
+                            "hash"       TEXT PRIMARY KEY,
+                            "type"       TEXT,
+                            "name"       TEXT,
+                            "code"       TEXT,
+                            "compatible" TEXT
+                        )'''
+    methodTableData = []
+    for statName,stat in availableStats.items():
+        if statName in sorted_analyses:
+            methodTableData.append((stat['hash'],'stat',statName,stat['method'],stat['compatible']))
+
+    ''' JOHN: you might be able to merge sqlite and postgres code here '''
 
     ## Create the INFO table (if not already present) for SQLite:
-    if args.pguser == None:
+    if args.pguser == None: # No pguser means SQLite!
         try:
             con = sqlite3.connect(args.output, timeout=120)
             cur = con.cursor()
-            if newDB: print '   [ Database created ]'
             cur.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='INFO';")
-            if cur.fetchone()[0] == 1:
-                print '   [ Output file is a database and can be accessed! ]'
-            else:
-                print '   [ Creating INFO table.. ]'
+            if cur.fetchone()[0] != 1:
+                print '   [    Creating INFO table    ]'
                 cur.execute(infoTableCreation)
-                con.commit()
-                print '   [ INFO table created! ]'
+            cur.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='SERVER';")
+            if cur.fetchone()[0] != 1:
+                print '   [   Creating SERVER table   ]'
+                cur.execute(serverTableCreation)
+                cur.executemany('INSERT INTO "SERVER"(key,value) values (?,?)',serverTableData)
+            else:
+                pass # Currently, if there is already a SERVER table, we just don't touch it. Users can do what they like.
+            cur.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='METHOD';")
+            if cur.fetchone()[0] != 1:
+                print '   [   Creating METHOD table   ]'
+                cur.execute(methodTableCreation)
+                cur.executemany('INSERT INTO "METHOD"(hash,type,name,code,compatible) values (?,?,?,?,?)', methodTableData)
+                print '   [     All tables created    ]'
+            else:
+                print '   [   Updating METHOD table   ]'
+                for methodHash,methodType,methodName,methodCode,methodCompatible in methodTableData:
+                    cur.execute('SELECT compatible FROM "METHOD" WHERE hash=?',(methodHash,))
+                    result = cur.fetchone()
+                    if result:
+                        methodCompatible = json.dumps(list(set(json.loads(methodCompatible) + json.loads(result[0])))) # merge compatibility lists
+                    cur.execute('INSERT OR REPLACE INTO "METHOD"(hash,type,name,code,compatible) values (?,?,?,?,?)',(methodHash,methodType,methodName,methodCode,methodCompatible))
+            con.commit() # So we can roll all of the above back if there's an error.
         except sqlite3.Error, e:
             print '''
 ERROR: Something went wrong creating the output database. The exact error was:
 ''' + str(e) + '''
-If you do not know what caused this error, please e-mail longinotto@immunbio.mpg.de with the error message and I will help you :)'''; exit()
+If you do not know what caused this error, please e-mail john@john.uk.com with the error message and I will help you :)'''; exit()
         finally:
             if cur: cur.close()
             if con: con.close()
@@ -268,28 +555,37 @@ If you do not know what caused this error, please e-mail longinotto@immunbio.mpg
             cur = con.cursor()
             cur.execute("SELECT 1 from pg_database WHERE datname='" + args.output + "';")                        # See if database already exists.
             if cur.fetchone() == None:                                                                           # If not, create it...
-                print '   [ Creating database.. ]'
+                print '   [ Creating Postgre database ]'
                 cur.execute('CREATE DATABASE "' + args.output + '"')
                 con.commit()
-                print '\n   [ Database "' + args.output + '" created - adding INFO table.. ]'
-                cur.close();con.close()
-                con = psycopg2.connect(dbname=args.output,user=args.pguser,host=args.hostname,password=password) # ...and connect to it.
-                cur = con.cursor()
+            cur.close();con.close()
+            con = psycopg2.connect(dbname=args.output,user=args.pguser,host=args.hostname,password=password) # ...and connect to it.
+            cur = con.cursor()
+            cur.execute("SELECT * from information_schema.tables where table_name='INFO'")
+            if cur.rowcount != 1:
+                print '   [    Creating INFO table    ]'
                 cur.execute(infoTableCreation)
-                con.commit()
-                print '   [ INFO table added! You\'re good to go! ]'
+            cur.execute("SELECT * from information_schema.tables where table_name='SERVER'")
+            if cur.rowcount != 1:
+                print '   [   Creating SERVER table   ]'
+                cur.execute(serverTableCreation)
+                cur.executemany('INSERT INTO "SERVER"(key,value) values (%s,%s)',serverTableData)
+            cur.execute("SELECT * from information_schema.tables where table_name='METHOD'")
+            if cur.rowcount != 1:
+                print '   [   Creating METHOD table   ]'
+                cur.execute(methodTableCreation)
+                cur.executemany('INSERT INTO "METHOD"(hash,type,name,code,compatible) values (?,?,?,?,?)', methodTableData)
+                print '   [     All tables created    ]'
             else:
-                cur.close();con.close()
-                con = psycopg2.connect(dbname=args.output,user=args.pguser,host=args.hostname,password=password) # Connect to existing database.
-                cur = con.cursor()
-                cur.execute("SELECT * from information_schema.tables where table_name='INFO'")
-                if cur.rowcount == 1:
-                    print '   [ Database exists as does INFO table! You\'re good to go! ]'
-                else:
-                    print '   [ Database exists but INFO table does not! Creating INFO table.. ]'
-                    cur.execute(infoTableCreation)
-                    con.commit()
-                    print '   [ INFO table added! You\'re good to go! ]'
+                print '   [   Updating METHOD table   ]'
+                for methodHash,methodType,methodName,methodCode,methodCompatible in methodTableData:
+                    cur.execute('SELECT compatible FROM "METHOD" WHERE hash=%s',(methodHash,))
+                    result = cur.fetchone()
+                    if result:
+                        methodCompatible = json.dumps(list(set(json.loads(methodCompatible) + json.loads(result)))) # merge compatibility lists. Also postgres returns a string not tuple so no result[0]
+                        cur.execute('INSERT INTO "METHOD"(hash,type,name,code,compatible) VALUES(%s,%s,%s,%s,%s) ON CONFLICT (hash) DO UPDATE SET compatible = EXCLUDED.compatible',
+                            (methodHash,methodType,methodName,methodCode,methodCompatible))
+            con.commit() # But apparently I'M the one who can't commit..
             cur.close();con.close()
         except psycopg2.ProgrammingError, e:
             print '''
@@ -300,6 +596,22 @@ If you do not know what caused this error, please e-mail longinotto@immunbio.mpg
             if cur: cur.close()
             if con: con.close()
 
+    ## This function fires off the subprocesses which actually analyse the input BAM/SAM data.
+    ## It will be called in a loop later as we process the input files.
+    def doSeQC(inputFile):
+        if bamCheck(inputFile):
+            if INFO['fileReader'] == 'htspython' or INFO['fileReader'] == 'pysam':
+                subprocessCommand = 'python "' + SeQC + '" --input "' + inputFile + '" --BAM ' + INFO['fileReader'] + ' --output "' + args.output + '" ' + explicitStats
+                if args.debug: print subprocessCommand # Don't run, just print what would have run.
+                else: return subprocess.Popen(subprocessCommand, stdout=subprocess.PIPE, stderr=STDERR, shell=True, executable='/bin/bash')
+            else:
+                subprocessCommand = '"' + args.samtools + '" view "' + inputFile + '" | python "' +  SeQC + '" --input "' + inputFile + '" --output "' + args.output + '" --SAM stdin ' + explicitStats
+                if args.debug: print subprocessCommand
+                else: return subprocess.Popen(subprocessCommand, stdout=subprocess.PIPE, stderr=STDERR, shell=True, executable='/bin/bash')
+        else:
+            subprocessCommand = 'python "' + SeQC + '" --input "' + inputFile + '" --SAM file --output "' + args.output + '" ' + explicitStats
+            if args.debug: print subprocessCommand
+            else: return subprocess.Popen(subprocessCommand, stdout=subprocess.PIPE, stderr=STDERR, shell=True, executable='/bin/bash')
 
     ## Fire off the initial subprocesses to start analysing the data!
     if not args.quiet:
@@ -355,7 +667,9 @@ You can run them manually, also with or without a "--debug", to see more informa
             elif out == '%': tidy('File ' + theFile + ' skipped as it is already in the database.')
             elif out == '?': tidy('DATA ERROR: ' + theFile + ' aborted by SeQC. Rerun with --debug for more info.')
             elif out == '!': tidy('Completed: ' + theFile)
-            else: tidy('SeQC ERROR: ' + theFile + ' failed, likely due to a bug in SeQC. Run with "--debug" for more info.')
+            else:
+                print 'x'+out+'x'
+                tidy('SeQC ERROR: ' + theFile + ' failed, likely due to a bug in SeQC. Run with "--debug" for more info.')
 
         ## Print some beautiful status bars ;)
         progressBarSpace = int(terminalCols/2)                              ## Use half the screen for the progress bar and status.
@@ -489,7 +803,7 @@ elif args.BAM or args.SAM:
     ## is, as if it's not there, it doesn't matter whats already in the database, we're expected to add it in over the top - but below is the code to check the database directly
     ## cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='" + fileHash + "';")                                                            ## SQLite
     ## cur.execute("SELECT 1 FROM pg_catalog.pg_class WHERE relkind = 'r' AND relname = '" + args.output + "' AND pg_catalog.pg_table_is_visible(oid) LIMIT 1") ## Postgres
-    cur.execute("SELECT analyses, 'Robert\"); DROP TABLE students; --' FROM INFO WHERE \"sampleHash\"='" + fileHash + "';")
+    cur.execute("SELECT \"analyses\", 'little bobby tables' FROM INFO WHERE \"sampleHash\"='" + fileHash + "';")
     result = cur.fetchone() # we return a "little bobby tables" because if you just ask for 1 column, SQLite returns a tuple but Postgres a string. With two fields they both return tuples.
     if result != None:
         existingAnalyses = json.loads(result[0])
@@ -505,7 +819,6 @@ elif args.BAM or args.SAM:
     if cur: cur.close()
     if con: con.close()
 
-
     ## Finally, we now start analyzing the data...
     ping.change('|',totalReads)
     data = [collections.defaultdict(int) for x in range(0,len(args.analysis))] # a list of dictionaries, one for every analysis group.
@@ -519,24 +832,66 @@ elif args.BAM or args.SAM:
             inputData = csv.reader(fileinput.input(inputFile), delimiter='\t') # fileinput also can read a file on disk
         header = ''
     elif args.BAM:
-        for stat in availableStats:
-            availableStats[stat].process = availableStats[stat].BAM
-        inputData = pysam.Samfile(inputFile, "rb")
-        header = inputData.header
+        for stat in sorted_analyses:
+            availableStats[stat]['init'] = availableStats[stat]['class']({'fileReader':args.BAM})
+        if args.BAM == 'htspython':
+            inputData = hts.Bam(inputFile, "rb")
+            header = 'htspython currently does not support reading the BAM header. If this upsets you please mail the author Brent Pedersen via GitHub:)'
+        elif args.BAM == 'pysam':
+            inputData = pysam.Samfile(inputFile, "rb")
+            header = inputData.header
 
-    for processedReads, line in enumerate(inputData):
-        try:
-            ping.pong(processedReads)
-            for a, analysis in enumerate(args.analysis):
-                thisLine = tuple([ availableStats[stat].process(line) for stat in analysis ])
-                data[a][thisLine] += 1
-        except IndexError:
-            ## Extremely crude header-skipping for SAM files! You can't trust 'comment' symbols, because I've seen SAM files which don't use them.
-            if len(line) < 11: header += line
-            if args.debug: print 'Skipped line: ' + str(line)
-            exit()
+    ## Do .before work:
+    for analysis in sorted_analyses:
+        if hasattr(availableStats[analysis]['init'],'before'):
+            exec(availableStats[analysis]['init'].before)
 
-    ## All done reading file for stats.
+    ## If I was to write the code myself:
+    for reads_processed, read in enumerate(inputData):
+        ping.pong(reads_processed)
+        FLAG = intToFlag[read.flag]
+        RNAME = intToFlag[read._b.core.tid]
+        data[0][(FLAG,RNAME)] += 1
+
+    ## But due to the variable nature of the code, here's the general solution:
+    #results = dict.fromkeys(sorted_analyses)
+    #for reads_processed, read in enumerate(inputData):
+    #    ping.pong(reads_processed)
+
+    #    for analysis in sorted_analyses:
+    #        availableStats[analysis]['init'].METHOD(read)
+    #        # in results['FLAG'] is value
+    #    for a, analysis in enumerate(args.analysis):
+    #        data[a][tuple([ results[stat] for stat in analysis ])] += 1
+
+
+    '''    ## Read input file:
+        for reads_processed, read in enumerate(inputData):
+            try:
+                results = dict.fromkeys(sorted_analyses)
+                ping.pong(reads_processed)
+                for analysis in sorted_analyses:
+                    exec(availableStats[analysis]['init'].METHOD)
+                    # Now all of the stats for this line have been generated (and only once, irrispective of grouping)
+                for a, analysis in enumerate(args.analysis):
+                    thisLine = tuple([ results[stat] for stat in analysis ])
+                    data[a][thisLine] += 1
+            except IndexError:
+                ## Extremely crude header-skipping for SAM files!
+                if len(line) < 11: header += line
+                if args.debug: print 'Skipped line: ' + str(line)
+                exit()
+    '''
+    print  data[0]
+    exit()
+
+
+
+
+
+
+
+    ## All done reading file for stats. Time to add that data to the database.
     ping.change('@',len(args.analysis))
 
     if args.pguser == None:

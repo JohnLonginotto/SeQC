@@ -1,0 +1,17 @@
+class stat:
+    def __init__(self,INFO):
+        self.DESCRIPTION        =  ['Chromosome/Contig of read. "*" becomes "Unmapped"', 'chr1']
+        self.LINKABLE           =  True
+        self.SQL                =  'TEXT'
+        if   INFO['fileReader'] == 'sam':       self.METHOD = 'RNAME = read[2]'
+        elif INFO['fileReader'] == 'pysam':     self.METHOD = 'RNAME = read.tid'
+        elif INFO['fileReader'] == 'htspython': self.METHOD = 'RNAME = read._b.core.tid'
+        else:                                   self.METHOD = None
+        if INFO['fileReader'] == 'pysam':
+            self.after =  "if tupleToList[self.COLUMN] == -1: tupleToList[self.COLUMN] = 'Unmapped'"
+            self.after += "else: tupleToList[self.COLUMN] = inputData.getrname(tupleToList[self.COLUMN])"
+        elif INFO['fileReader'] == 'htspython': 
+            self.after =  "if tupleToList[self.COLUMN] == -1: tupleToList[self.COLUMN] = 'Unmapped'"
+            self.after += "else: tupleToList[self.COLUMN] = ffi.string(hts._h.target_name[tupleToList[self.COLUMN]])"
+        else: self.after = None
+addStat('RNAME',[])

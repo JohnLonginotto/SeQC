@@ -1,0 +1,10 @@
+class stat:
+    def __init__(self,INFO):
+        self.DESCRIPTION        =  ['Mapping quality','255']
+        self.LINKABLE           =  True
+        self.SQL                =  'INT'
+        if   INFO['fileReader'] == 'sam':       self.METHOD = 'RNAME = read[4]'
+        elif INFO['fileReader'] == 'pysam':     self.METHOD = 'RNAME = read.mapq'
+        elif INFO['fileReader'] == 'htspython': self.METHOD = 'RNAME = read.mapq'
+        else:                                   self.METHOD =  None
+addStat('MAPQ',[])

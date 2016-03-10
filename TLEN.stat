@@ -1,0 +1,10 @@
+class stat:
+    def __init__(self,INFO):
+        self.DESCRIPTION        =  ['Distance between first mapped base and last in fragment','150']
+        self.LINKABLE           =  True
+        self.SQL                =  'INT'
+        if INFO['fileReader']   == 'sam':       self.METHOD = 'RNAME = read[8]'
+        elif INFO['fileReader'] == 'pysam':     self.METHOD = 'RNAME = read.tlen'
+        elif INFO['fileReader'] == 'htspython': self.METHOD = 'RNAME = read.tlen'
+        else:                                   self.METHOD =  None
+addStat('TLEN',[])

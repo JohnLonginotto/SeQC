@@ -1,0 +1,10 @@
+class stat:
+    def __init__(self,INFO):
+        self.DESCRIPTION        =  ['Position of the first mapped base in read','4030012']
+        self.LINKABLE           =  True
+        self.SQL                =  'INT'
+        if   INFO['fileReader'] == 'sam':       self.METHOD = 'RNAME = read[3]'
+        elif INFO['fileReader'] == 'pysam':     self.METHOD = 'RNAME = read.pos'
+        elif INFO['fileReader'] == 'htspython': self.METHOD = 'RNAME = read.pos'
+        else:                                   self.METHOD =  None
+addStat('POS',[])
