@@ -20,7 +20,6 @@ for row in range(0,len(table)):
 '''
         elif INFO['fileReader'] == 'htspython': \
 '''
-from cffi import FFI as ffi
 for row in range(0,len(table)):
     if table[row][column] == -1: table[row][column] = 'Unmapped'
     else:                        table[row][column] = ffi.string(hts._h.target_name[ table[row][column] ]))
