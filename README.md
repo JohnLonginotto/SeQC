@@ -1,8 +1,8 @@
 # SeQC
 
-_SeQC is still very much in the pre-Alpha stage of development. A lot has changed over the last year since the videos you may have seen on vimeo (http://vimeo.com/123508180), and i'm currently in the process of updating the website code to match the new database structure. Fortunately the database-creation side of things is fairly locked-in. The only change still planned for the Python code is a --writebam argument that will let you create a new BAM based on some modular criteria. The idea would be to look at the subpopulation of reads in the browser, and from that generate a --writeout command to capture just those reads in a new .bam file, greatly simplifying the process of filtering a file.
+_SeQC is still very much in the pre-Alpha stage of development. A lot has changed over the last year since the videos you may have seen on vimeo (http://vimeo.com/123508180), and i'm currently in the process of updating the website code to match the new database structure. Fortunately the database-creation side of things is fairly locked-in. The only change still planned for the Python code is a --writebam argument that will let you create a new BAM based on some modular criteria. The idea would be to look at the subpopulation of reads in the browser, and from that generate a --writeout command to capture just those reads in a new .bam file, greatly simplifying the process of filtering a file._
 
-There are a lot of new ideas for the website too, including sharing QC stats/visualizations with others over the internet, bringing online all the ENCODE/Roadmap/etc QC data for comparison with your own, and a online modules directory to find trusted modules which do whatever you need them to do. OK - back to the blurb:_
+_There are a lot of new ideas for the website too, including sharing QC stats/visualizations with others over the internet, bringing online all the ENCODE/Roadmap/etc QC data for comparison with your own, and a online modules directory to find trusted modules which do whatever you need them to do. OK - back to the blurb:_
 
 SeQC is a "quality-control analysis" tool.
 
