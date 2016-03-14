@@ -45,8 +45,8 @@ import collections
 # Import optional librarys:
 try: import pysam ; pysamInstalled = True
 except: pysamInstalled = False
-try: import hts ; import cffi; ffi = cffi.FFI() ; htspythonInstalled = True
-except: pysamInstalled = False
+try: import hts ; from cffi import FFI as ffi; htspythonInstalled = True
+except: htspythonInstalled = False
 try: import psycopg2 ; postgresInstalled = True
 except: postgresInstalled = False  
 
