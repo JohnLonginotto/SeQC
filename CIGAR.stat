@@ -3,8 +3,8 @@ class stat:
         self.DESCRIPTION        =  ['CIGAR string','22S54M']
         self.LINKABLE           =  True
         self.SQL                =  'TEXT'
-        if INFO['fileReader']   == 'sam':       self.METHOD = 'RNAME = read[5]'
-        elif INFO['fileReader'] == 'pysam':     self.METHOD = 'RNAME = read.cigarstring'
-        elif INFO['fileReader'] == 'htspython': self.METHOD = 'RNAME = str(read.cigar)' # Do i need this str() ?
+        if INFO['fileReader']   == 'sam':       self.METHOD = 'CIGAR = read[5]'
+        elif INFO['fileReader'] == 'pysam':     self.METHOD = 'CIGAR = read.cigarstring'
+        elif INFO['fileReader'] == 'htspython': self.METHOD = 'CIGAR = str(read.cigar)' # Do i need this str() ?
         else:                                   self.METHOD =  None
 addStat('CIGAR',[])

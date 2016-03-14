@@ -6,12 +6,25 @@ class stat:
         if   INFO['fileReader'] == 'sam':       self.METHOD = 'RNAME = read[2]'
         elif INFO['fileReader'] == 'pysam':     self.METHOD = 'RNAME = read.tid'
         elif INFO['fileReader'] == 'htspython': self.METHOD = 'RNAME = read._b.core.tid'
-        else:                                   self.METHOD = None
+        else:                                   self.METHOD =  None
+
+        ## Chromsome is a pain, because it's not stored at the read-level per-se, rather it's converted from an int to the actual chromosome using a mapping in the header
+        ## This means that if we were to bin reads based on their actual chromosome name, it would be really slow. Much faster to bin using the original ints, then convert
+        ## to an actual chromosome name.... now.
         if INFO['fileReader'] == 'pysam':
-            self.after =  "if tupleToList[self.COLUMN] == -1: tupleToList[self.COLUMN] = 'Unmapped'"
-            self.after += "else: tupleToList[self.COLUMN] = inputData.getrname(tupleToList[self.COLUMN])"
-        elif INFO['fileReader'] == 'htspython': 
-            self.after =  "if tupleToList[self.COLUMN] == -1: tupleToList[self.COLUMN] = 'Unmapped'"
-            self.after += "else: tupleToList[self.COLUMN] = ffi.string(hts._h.target_name[tupleToList[self.COLUMN]])"
-        else: self.after = None
+            self.after = \
+'''
+for row in range(0,len(table)):
+    if table[row][column] == -1: table[row][column] = 'Unmapped'
+    else:                        table[row][column] = inputData.getrname(table[row][column])
+'''
+        elif INFO['fileReader'] == 'htspython': \
+'''
+from cffi import FFI as ffi
+for row in range(0,len(table)):
+    if table[row][column] == -1: table[row][column] = 'Unmapped'
+    else:                        table[row][column] = ffi.string(hts._h.target_name[ table[row][column] ]))
+''' 
+        else: self.after = None # Not needed if we're reading a SAM. Although maybe * becomes Unmapped?
 addStat('RNAME',[])
+

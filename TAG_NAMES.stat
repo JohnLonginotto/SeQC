@@ -1,6 +1,6 @@
 class stat:
     def __init__(self,INFO):
-        self.DESCRIPTION        =  ['Optional read-level tag names, space delimited and sorted','MD NM XA']
+        self.DESCRIPTION        =  ['Optional read-level tag names space delimited and sorted','MD NM XA']
         self.LINKABLE           =  True
         self.SQL                =  'TEXT'
         if   INFO['fileReader'] == 'sam':       self.METHOD = 'TAG_NAMES = " ".join(sorted([ x.split(":")[0] for x in read[11:] ]))'

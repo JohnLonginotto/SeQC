@@ -1,17 +1,10 @@
 class stat:
     def __init__(self,INFO):
-        self.DESCRIPTION        =  ['RNAME of next read in pair. "=" converted.','chr1']
+        self.DESCRIPTION        =  ['POS of next read in pair.','654569']
         self.LINKABLE           =  True
-        self.SQL                =  'TEXT'
-        if INFO['fileReader']   == 'sam':       self.METHOD = 'RNAME = read[6]'
-        elif INFO['fileReader'] == 'pysam':     self.METHOD = 'RNAME = read.rnext'
-        elif INFO['fileReader'] == 'htspython': self.METHOD = 'RNAME = hts._b.core.mtid'
+        self.SQL                =  'INT'
+        if   INFO['fileReader'] == 'sam':       self.METHOD = 'RNEXT = read[6]'
+        elif INFO['fileReader'] == 'pysam':     self.METHOD = 'RNEXT = read.rnext'
+        elif INFO['fileReader'] == 'htspython': self.METHOD = 'RNEXT = read._b.core.mpos'
         else:                                   self.METHOD =  None
-        if INFO['fileReader'] == 'pysam':
-            self.after =  "if tupleToList[self.COLUMN] == -1: tupleToList[self.COLUMN] = 'Unmapped'"
-            self.after += "else: tupleToList[self.COLUMN] = inputData.getrname(tupleToList[self.COLUMN])"
-        elif INFO['fileReader'] == 'htspython':
-            self.after =  "if tupleToList[self.COLUMN] == -1: tupleToList[self.COLUMN] = 'Unmapped'"
-            self.after += "else: tupleToList[self.COLUMN] = ffi.string(hts._h.target_name[tupleToList[self.COLUMN]])"
-        else: self.after = None
 addStat('RNEXT',[])

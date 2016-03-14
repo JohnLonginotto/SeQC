@@ -91,11 +91,11 @@ INFO = { 'fileReader': None } # This holds information that a stat module might 
 availableStats = {}           # This is where all the modular stats end up.
 def addStat(stat_name,compatible):
     # Do some very basic checks
-    if type(stat_name)  is not str:       print 'ERROR: The name of the module from file ' + str(thisFile) + ' is not a string? (this should be the first value for addStat)'; exit()
-    if type(stat) is not types.ClassType: print 'ERROR: The module ' + stat_name + ' is not a class? (this should be the second value for addStat)'; exit()
-    if type(compatible) is not list:      print 'ERROR: The module ' + stat_name + ' does not provide a lost of other compatible modules. (this should be the third value for addStat)'; exit()
+    if type(stat_name)  is not str:       print '\nERROR: The name of the module from file ' + str(thisFile) + ' is not a string? (this should be the first value for addStat)'; exit()
+    if type(stat) is not types.ClassType: print '\nERROR: The module ' + stat_name + ' is not a class? (this should be the second value for addStat)'; exit()
+    if type(compatible) is not list:      print '\nERROR: The module ' + stat_name + ' does not provide a lost of other compatible modules. (this should be the third value for addStat)'; exit()
     for md5 in compatible:
-        if not re.match(r"[a-f\d]{32}", md5.lower()): print 'ERROR: The MD5 string "' + md5 + '" in module ' + stat_name + ' is not valid MD5.'; exit()
+        if not re.match(r"[a-f\d]{32}", md5.lower()): print '\nERROR: The MD5 string "' + md5 + '" in module ' + stat_name + ' is not valid MD5.'; exit()
     # Hash the module and init a class object
     with open(thisFile,'rb') as f:
         method = re.sub("addStat.*",'', f.read(), flags=re.MULTILINE|re.DOTALL)
@@ -150,24 +150,28 @@ for statName,statData in sorted(availableStats.items()):
     ## Check stats for required values:
     stat = statData['init']
     for param in [ ('DESCRIPTION',list), ('LINKABLE',bool), ('SQL',str), ('METHOD',str) ]:
-        if not hasattr(stat,param[0]): print 'ERROR: The module ' + statName + ' doesnt have the required parameter ' + param ; exit()
+    # Uncomment below to try stats without exec()
+    #for param in [ ('DESCRIPTION',list), ('LINKABLE',bool), ('SQL',str) ]:
+        if not hasattr(stat,param[0]): print '\nERROR: The module ' + statName + ' doesnt have the required parameter ' + param ; exit()
         requiredValue = getattr(stat,param[0])
         if type(requiredValue) is not param[1]:
             if param[0] == 'METHOD' and INFO['fileReader'] == None and requiredValue is None: pass # The only exception.
-            else: print 'ERROR: The module ' + statName + ' has parameter ' + param[0] + ' but its not ' + str(param[1]) ; exit()
+            else: print '\nERROR: The module ' + statName + ' has parameter ' + param[0] + ' but its not ' + str(param[1]) ; exit()
 
     # Stat name:
-    if len(statName) > 10: print 'ERROR: The name of stat ' + statName + ' is too long! Please keep it to 10 or less characters! :('; exit()
+    if len(statName) > 10: print '\nERROR: The name of stat ' + statName + ' is too long! Please keep it to 10 or less characters! :('; exit()
 
     # DESCRIPTION:
-    if len(stat.DESCRIPTION) != 2: print 'ERROR: The DESCRIPTION for stat ' + statName + ' needs two values, an explanation and an output example.'; exit()
-    if 60 < len(stat.DESCRIPTION[0]): print 'ERROR: The explination for stat ' + statName + ' needs to be under 70 characters. If this is not possible, put in a URL!'; exit()
-    if 30 < len(stat.DESCRIPTION[1]): print 'ERROR: The example output for stat ' + statName + ' needs to be under 30 characters. Put N/A if its way too long, or use ellipses..'; exit()
+    if len(stat.DESCRIPTION) != 2: print '\nERROR: The DESCRIPTION for stat ' + statName + ' needs two values, an explanation and an output example.'; exit()
+    if 60 < len(stat.DESCRIPTION[0]): print '\nERROR: The explination for stat ' + statName + ' needs to be under 70 characters. If this is not possible, put in a URL!'; exit()
+    if 30 < len(stat.DESCRIPTION[1]): print '\nERROR: The example output for stat ' + statName + ' needs to be under 30 characters. Put N/A if its way too long, or use ellipses..'; exit()
+    if ',' in stat.DESCRIPTION[1]: print '\nERROR: The example output for stat ' + statName + ' needs to be under 30 characters. Put N/A if its way too long, or use ellipses..'; exit()
+    if any('%' in s for s in stat.DESCRIPTION): print '\nERROR: The module used to print the --help message cant handle "%" :(\nPlease remove them from your ' + statName + ' module.'; exit()
 
     # SQL:
     if stat.SQL not in ['TEXT','INT','REAL'] and stat.LINKABLE == True:
-        if stat.SQL == 'JSON': print 'ERROR: The stat ' + statName + ' uses JSON as the SQL type, but also claims to be LINKABLE (which it cannot be).'; exit()
-        print 'ERROR: The stat ' + statName + ' claims to be a linkable stat, however its .SQL value is not "TEXT", "INT", or "REAL".'; exit()
+        if stat.SQL == 'JSON': print '\nERROR: The stat ' + statName + ' uses JSON as the SQL type, but also claims to be LINKABLE (which it cannot be).'; exit()
+        print '\nERROR: The stat ' + statName + ' claims to be a linkable stat, however its .SQL value is not "TEXT", "INT", or "REAL".'; exit()
 
     # METHOD:
     # If this becomes a function other than an object, this might change by giving it an input value and running it and see if the output is hashable for LINKABLE stated
@@ -175,39 +179,39 @@ for statName,statData in sorted(availableStats.items()):
     # index:
     if hasattr(stat,'index') and stat.index is not False and stat.index is not None:
         if stat.LINKABLE:
-            print 'ERROR: The module ' + statName + ' is LINKABLE but also has a value for the index. Indexing for linked stats is done by SeQC. Plese delete the index parameter, or set LINKABLE to False.'; exit()
+            print '\nERROR: The module ' + statName + ' is LINKABLE but also has a value for the index. Indexing for linked stats is done by SeQC. Plese delete the index parameter, or set LINKABLE to False.'; exit()
         else:
-            if type(stat.index) is not str: print 'ERROR: The value for self.index in module ' + statName + ' must be a string!'; exit()
+            if type(stat.index) is not str: print '\nERROR: The value for self.index in module ' + statName + ' must be a string!'; exit()
             # We could do checks here for things like "CREATE INDEX... ", but actually it might be better to let things be more open for the users.
 
     # viz:
     if hasattr(stat,'viz') and stat.viz is not False and stat.viz is not None:
-        if type(stat.viz) is not list or not (0 < len(stat.viz) < 3): print 'ERROR: The value for viz in module ' + statName + ' must be a list, with 1 or 2 values!'; exit()
-        if type(stat.viz[0]) is not str: print 'ERROR: The first value for the viz parameter in module ' + statName + ' is not a string, therefore it is not a name!'; exit()
+        if type(stat.viz) is not list or not (0 < len(stat.viz) < 3): print '\nERROR: The value for viz in module ' + statName + ' must be a list, with 1 or 2 values!'; exit()
+        if type(stat.viz[0]) is not str: print '\nERROR: The first value for the viz parameter in module ' + statName + ' is not a string, therefore it is not a name!'; exit()
         if len(stat.viz) is 2 and (type(stat.viz[1]) is not str and type(stat.viz[1]) is not False and stat.viz[1] is not None): 
-            print 'ERROR: The code for the viz parameter in module ' + statName + ' must be a string!'; exit()
+            print '\nERROR: The code for the viz parameter in module ' + statName + ' must be a string!'; exit()
 
     # dependencies:
     if hasattr(stat,'dependencies') and stat.dependencies is not None and stat.dependencies is not False:
-        if type(stat.dependencies) is not list: print 'ERROR: The value for dependencies in module ' + statName + ' must be None or a list!'; exit()
+        if type(stat.dependencies) is not list: print '\nERROR: The value for dependencies in module ' + statName + ' must be None or a list!'; exit()
         for dependency in stat.dependencies:
-            if dependency not in availableStats: print 'ERROR: The dependency ' + str(dependency) + ' in module ' + statName + ' is not know to SeQC. Please add it to the local directory!'
+            if dependency not in availableStats: print '\nERROR: The dependency ' + str(dependency) + ' in module ' + statName + ' is not know to SeQC.'
 
     # before
-    if hasattr(stat,'before') and getattr(stat,'dependencies',None) is not None and stat.dependencies is not False:
-        if type(stat.dependencies) is not str: print 'ERROR: The value for self.before in module ' + statName + ' must be None or a string!'; exit() 
+    if hasattr(stat,'before') and getattr(stat,'before',None) is not None and stat.before is not False:
+        if type(stat.before) is not str: print '\nERROR: The value for self.before in module ' + statName + ' must be None or a string!'; exit() 
 
     # after
-    if hasattr(stat,'after') and getattr(stat,'dependencies',None) is not None and stat.dependencies is not False:
-        if type(stat.dependencies) is not str: print 'ERROR: The value for self.after in module ' + statName + ' must be None or a string!'; exit() 
+    if hasattr(stat,'after') and getattr(stat,'after') is not None and stat.after is not False:
+        if type(stat.after) is not str: print '\nERROR: The value for self.after in module ' + statName + ' must be None or a string!'; exit() 
 
 ## Create a dependency graph:
 dependencyGraph = {}
 class CyclicDependencies(Exception): pass
-def sort_dependencies(all_modules):
+def sort_dependencies(dependencyGraph):
     post_order = []
     tree_edges = {}
-    for fromNode,toNodes in all_modules.items():
+    for fromNode,toNodes in dependencyGraph.items():
         if fromNode not in tree_edges:
             tree_edges[fromNode] = 'root'
             for toNode in toNodes:
@@ -215,18 +219,18 @@ def sort_dependencies(all_modules):
                     try: post_order += get_posts(fromNode,toNode,tree_edges)
                     except CyclicDependencies as e: print e; exit()
             post_order.append(fromNode)
-    return post_order[::-1] # Order generated is actually in reverse, since this is a depth-first algorithum.
+    return post_order
 def get_posts(fromNode,toNode,tree_edges):
     post_order = []
     tree_edges[toNode] = fromNode
-    for dependency in all_modules[toNode]:
+    for dependency in dependencyGraph[toNode]:
         if dependency not in tree_edges:
             post_order += get_posts(toNode,dependency,tree_edges)
         else:
             parent = tree_edges[toNode]
             while parent != 'root':
                 if parent == dependency:
-                    raise CyclicDependencies('ERROR: Modules ' + dependency + ' and ' + toNode + ' have cyclic dependencies!')
+                    raise CyclicDependencies('\nERROR: Modules ' + dependency + ' and ' + toNode + ' have cyclic dependencies!')
                 parent = tree_edges[parent]
     return post_order + [toNode]
 
@@ -249,19 +253,21 @@ parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
     description="Put in multiple BAM/SAM files, get out an SQL database of read statistics.")
 parser.add_argument("--analysis", nargs='+', metavar='', action='append',
     help='''Optional. One or more statistic to gather.
-Default is to do "--analysis CHR TYPE FLAG RGID GC --analysis TLEN" \n
+Default is to do "--analysis RNAME TYPE FLAG RGID GC --analysis TLEN" \n
 Currently avalible stat names:
 ''' + helpText + '\n')
-parser.add_argument("--samtools", default='samtools', metavar='', 
-    help="Optional until it isn't. Path to samtools if it's needed and cannot be found.")
 parser.add_argument("--input", nargs='+', metavar='',
     help='Required. One or more SAM (and/or BAM) files to analyse.')
 parser.add_argument("--output", default='myProject.SeQC', metavar='',
     help='Optional. Name of output database (or path for SQLite). Default is "myProject".')
+parser.add_argument("--samtools", default='samtools', metavar='', 
+    help="Optional, unless it isn't. Path to samtools if it's needed and cannot be found.")
 parser.add_argument("--quiet", action='store_true',
     help='Optional. No status bars in output. Good for logs, bad for humans.')
+parser.add_argument('--writeover', action='store_true',
+    help="Optional. Will write over old data even if inputs/analyses are identical")
 parser.add_argument("--pguser", metavar='',
-    help="Required if using Postgres. User account name.",)
+    help="Optional, unless you want to use Postgres instead of SQLite. User account name.",)
 parser.add_argument("--pgpass", metavar='',
     help="Optional. Password of --pguser.")
 parser.add_argument("--pghost", default="localhost", metavar='',
@@ -270,10 +276,8 @@ parser.add_argument("--cpu", default=2, metavar='', type=int,
     help="Optional. Number of processes/cores you want to use. Default is 2.")
 parser.add_argument("--md5", action='store_true',
     help="Optional. Returns the MD5 checksums of all loaded modules (as SeQC sees them) and exits.")
-parser.add_argument('--writeover', action='store_true',
-    help="Optional. Will write over old data even if inputs/analyses are identical")
 parser.add_argument("--debug", action='store_true',
-    help="To err is human; to debug, divine.")
+    help="Required. Probably.")
 parser.add_argument("--SAM", help=argparse.SUPPRESS)   # Used internally to tell subprocesses we are reading SAM. Set to either 'stdin' or 'file'.
 parser.add_argument("--BAM", help=argparse.SUPPRESS)   # Used internally to tell subprocesses we reading directly via pysam or htspython.
 args = parser.parse_args()
@@ -289,41 +293,42 @@ if args.md5:
 
 ## It takes your stats and returns all stats (so, includes the dependancies, and the dependancies of dependancies..)
 def get_all_modules_to_run(stat_name):
-    if hasattr(availableStats[stat_name],'dependencies'):
-        immediate_dependencies = set(availableStats[stat_name].dependencies)
+    if hasattr(availableStats[stat_name]['init'],'dependencies'):
+        immediate_dependencies = set(availableStats[stat_name]['init'].dependencies)
         more_dependencies = set()
         for dependency in immediate_dependencies:
-            more_dependencies.update(get_dependencies(dependency))
+            more_dependencies.update(get_all_modules_to_run(dependency))
         immediate_dependencies.add(stat_name)
         return tuple(immediate_dependencies | more_dependencies)
     else: return (stat_name,)
 
 ## "Sanitize" user analysis arguments:
-if args.analysis is not None:
-    if not args.SAM and not args.BAM: 
-        print '   [ ' + str(len(availableStats)) + ' Modules Loaded! ]'
-    # We make each linked group of stats a set, before converting to a tuple, in the event that the user adds the same stat twice, eg. -a gc gc becomes just (gc).
-    # We also sort by stat name in each linked group of stats so "-a tlen gc" becomes (gc,tlen).
-    # We then put these tuples into a set, so that "-a gc tlen -a tlen gc" would become just ((gc,tlen)), as a form of redundancy checking.
-    # Finally we then put all these sorted tuples into a sorted list. ~ phew ~
-    allGroups = set()
-    allAnalyses = set()
-    for linkedGroup in args.analysis:
-        linkedGroup = set(linkedGroup)
-        for stat in linkedGroup:
-            if stat not in availableStats.keys():
-                print '\nERROR: I do not know how to calculate the statistic: ' + stat
-                print 'If the .stat file for this statistic is not in the same directory as SeQC, you may need to download it from http://ac.gt/seqc\n'; exit()
-            allAnalyses.update(get_all_modules_to_run(stat)) # Recurses all dependancies too.
-        allGroups.add(tuple(sorted(linkedGroup)))               # sorted returns a list but we need a hashable tuple.
-    args.analysis = sorted(allGroups)                           # A sorted list of sorted tuples.
-    sorted_analyses = []                                        # This is a non-redundant list of the analyses used (and there dependancies), in the order they need to be run. 
-    for analysis in topological_order:
-        if analysis in allAnalyses:
-            sorted_analyses.append(analysis)
-else:
-    args.analysis   = [('CHR', 'TYPE', 'FLAG', 'GC'),('TLEN')]    # The default stats and grouping.
-    sorted_analyses = [ 'CHR', 'TYPE', 'FLAG', 'GC', 'TLEN'  ]
+if args.analysis is None:
+    args.analysis = [('RNAME', 'TYPE', 'FLAG', 'GC'),('TLEN',)] # Default analyses
+
+if not args.SAM and not args.BAM: 
+    print '   [ ' + str(len(availableStats)) + ' Modules Loaded! ]'
+# We make each linked group of stats a set, before converting to a tuple, in the event that the user adds the same stat twice, eg. -a gc gc becomes just (gc).
+# We also sort by stat name in each linked group of stats so "-a tlen gc" becomes (gc,tlen).
+# We then put these tuples into a set, so that "-a gc tlen -a tlen gc" would become just ((gc,tlen)), as a form of redundancy checking.
+# Finally we then put all these sorted tuples into a sorted list. ~ phew ~
+allGroups = set()
+allAnalyses = set()
+for group in args.analysis:
+    group = set(group)
+    for stat in group:
+        if stat not in availableStats.keys():
+            print '\nERROR: I do not know how to calculate the statistic: ' + stat
+            print 'If the .stat file for this statistic is not in the same directory as SeQC, you may need to download it from http://ac.gt/seqc\n'; exit()
+        if availableStats[stat]['init'].LINKABLE == False and len(group) != 1:
+            print '\nERROR: Unlinkable stats must go in their own --analysis group! Please take "' + stat + '" out of --analysis ' + ' '.join(group); exit()
+        allAnalyses.update(get_all_modules_to_run(stat)) # Recurses all dependancies too.
+    allGroups.add(tuple(sorted(group)))                  # sorted returns a list but we need a hashable tuple.
+args.analysis = sorted(allGroups)                        # A sorted list of sorted tuples.
+sorted_analyses = []                                     # This is a non-redundant list of the analyses used (and there dependancies), in the order they need to be run. 
+for analysis in topological_order:
+    if analysis in allAnalyses:
+        sorted_analyses.append(analysis)
 
 ## args.SAM and args.BAM are only ever present in subprocesses. The main parent python code (executed by the user) starts below:
 if not args.SAM and not args.BAM:
@@ -379,7 +384,7 @@ Please install it via "pip install --user psycopg2"'''; exit()
     usedInputs = []
     for inputFile in args.input:
         if not os.path.isfile(inputFile) or not os.access(inputFile, os.R_OK): 
-            print 'ERROR: The input file ' + str(inputFile) + ' could not be accessed. Are you sure it exists and we have permissions to read it? (continuing without it)'
+            print '\nERROR: The input file ' + str(inputFile) + ' could not be accessed. Are you sure it exists and we have permissions to read it? (continuing without it)'
         else: usedInputs.append(inputFile)
 
     ## Most parameters to all subprocesses are static and never change, such as the database connection details or --writeover. 
@@ -416,13 +421,10 @@ Please install it via "pip install --user psycopg2"'''; exit()
             else:
                 code = subprocess.call(args.samtools, stdout=DEVNULL, stderr=DEVNULL, shell=True)
                 if code != 1:
-                    print 'ERROR: You have tried to calculate statistics on a BAM file, but the path to samtools you have provided:'
+                    print '\nERROR: You have tried to calculate statistics on a BAM file, but the path to samtools you have provided:'
                     print args.samtools,' does not work :('
                     exit()
                 else: samtoolsInstalled = True
-    if gotBAM:
-        if not htspythonInstalled: print 'INFO: You should install htspython if you can. It is a lot faster than pysam, and works with pypy!'
-        elif not pysamInstalled:   print 'INFO: You should install pysam if you can, or even better, htspython. They make everything a LOT faster!'
 
     ## Check that all the used stats have a method for this kind of data:
     blocking = {'sam':False,'pysam':False,'htspython':False}
@@ -460,18 +462,19 @@ Please install it via "pip install --user psycopg2"'''; exit()
     ## It is basically 1 row per analysed BAM/SAM file (or rather, per input file MD5 checksum).
     ## Regarding data privacy, SeQC make no distinction between users accessing data - be it in-house, or across the globe. It also makes no distinction between
     ## users connecting directly, and users finding your database through the public listings (if you decide to make your data publicly available).
-    ## SeQC does allow you to hide any INFO column from users via SERVER settings. filename and path for example are quite popular ones to hide. You cannot, however,
+    ## SeQC does allow you to hide any INFO column from users via SERVER settings. file name and path for example are quite popular ones to hide. You cannot, however,
     ## hide *some* of the data in json_stats. It's all or nothing. This is why any data going into json_stats is always gathered explicitly.
     infoTableCreation = '''CREATE TABLE "INFO" (
                             "hash"          TEXT PRIMARY KEY,
                             "path"          TEXT,
                             "size"          TEXT,
-                            "header"        TEXT
+                            "header"        TEXT,
                             "analyses"      TEXT,
-                            "filename"      TEXT,
+                            "file_name"     TEXT,
                             "json_stats"    TEXT,
                             "last_updated"  TEXT,
-                            "creation_time" TEXT
+                            "creation_time" TEXT,
+                            "total_reads"   INT
                         )'''
     ## The data gets added to INFO by subprocesses (after all stats for that input file have been calculated).
 
@@ -657,13 +660,14 @@ You can run them manually, also with or without a "--debug", to see more informa
         ## Read the 1 byte of status output from all subprocesses:
         for theFile, handler in subprocesses.items():
             try: out = handler.stdout.read(1)
-            except: tidy('ERROR: Process analysing ' + theFile + ' unexpectedly stopped?!')
+            except: tidy('\nERROR: Process analysing ' + theFile + ' unexpectedly stopped?!')
 
             if out in ['0','1','2','3','4','5','6','7','8','9']: outputs[theFile][1] += int(out)
             elif out == '#': outputs[theFile] = ['Calculating MD5         |',0]                                     ## Statuses are always
             elif out == '|': outputs[theFile] = ['Calculating Statistics  |',0]                                     ## exactly 25 characters
-            elif out == '@': outputs[theFile] = ['Writing To Database     |',0]                                     ## in width and include
-            elif out == '$': outputs[theFile] = ['Postgres Table Indexing |',0]                                     ## the starting pipe "|"
+            elif out == '&': outputs[theFile] = ['Converting to SQL table |',0]                                     ## in width and include
+            elif out == '@': outputs[theFile] = ['Writing To Database     |',0]                                     ## the starting pipe "|"
+            elif out == '$': outputs[theFile] = ['Postgres Table Indexing |',0]
             elif out == '%': tidy('File ' + theFile + ' skipped as it is already in the database.')
             elif out == '?': tidy('DATA ERROR: ' + theFile + ' aborted by SeQC. Rerun with --debug for more info.')
             elif out == '!': tidy('Completed: ' + theFile)
@@ -678,7 +682,7 @@ You can run them manually, also with or without a "--debug", to see more informa
         arrow = '' if arrow else '>'                                        ## '' is falsey, while '>' is truthy, so this toggles it.
         for theFile, storedOut in outputs.items():
             if len(theFile) > fileNameSpace:
-                left = '<-- ' + (theFile + ': ')[-fileNameSpace+4:]         ## <-- to indicate the filename was truncated
+                left = '<-- ' + (theFile + ': ')[-fileNameSpace+4:]         ## <-- to indicate the file name was truncated
             else:
                 left = theFile.ljust(fileNameSpace)
             right = (storedOut[0] + ('=' * int(storedOut[1] * progressScaling)) + arrow).ljust(progressBarSpace-1) + '|'
@@ -792,7 +796,7 @@ elif args.BAM or args.SAM:
         else:
             readCount = int(readCounting.stdout.read())
         return [ readCount , md5.hexdigest() ]
-    totalReads, fileHash = MD5andCount(inputFile,args.samtools)
+    total_reads, file_hash = MD5andCount(inputFile,args.samtools)
 
     ## Now we check if any analyses have been performed on this sample before.
     ## If they have and --writeover is not set, we dont do the analysis again.
@@ -801,221 +805,230 @@ elif args.BAM or args.SAM:
     cur = con.cursor()
     ## We have two options to find out if the table exists - check the SQL database itself, or check the INFO table. Which is 'more correct'? I think checking the INFO table
     ## is, as if it's not there, it doesn't matter whats already in the database, we're expected to add it in over the top - but below is the code to check the database directly
-    ## cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='" + fileHash + "';")                                                            ## SQLite
+    ## cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='" + file_hash + "';")                                                            ## SQLite
     ## cur.execute("SELECT 1 FROM pg_catalog.pg_class WHERE relkind = 'r' AND relname = '" + args.output + "' AND pg_catalog.pg_table_is_visible(oid) LIMIT 1") ## Postgres
-    cur.execute("SELECT \"analyses\", 'little bobby tables' FROM INFO WHERE \"sampleHash\"='" + fileHash + "';")
-    result = cur.fetchone() # we return a "little bobby tables" because if you just ask for 1 column, SQLite returns a tuple but Postgres a string. With two fields they both return tuples.
+    cur.execute("SELECT \"analyses\", \"json_stats\" FROM INFO WHERE \"hash\"='" + file_hash + "';")
+    result = cur.fetchone()
+    # "analyses" is a dictionary (or a JSON object...) where the key is the --analysis group after a '_'.join(group), with all sorts of meta data as values.
+    # Because analysis groups are always stored/requested in alphabetical order, the key for any given group of analyses is easy to work out.
     if result != None:
-        existingAnalyses = json.loads(result[0])
+        existing_analyses = json.loads(result[0])
+        existing_json_stats = json.loads(result[1])
+        if type(existing_analyses) != dict:
+            if args.debug: print "\nERROR: In your output database's INFO table, the analyses column for the file " + args.input + ' (' + file_hash + ') is not a dictionary/object?!'; exit()
+            else: print '?'
+            exit()
         if not args.writeover:
             skip = set()
-            for analysis in args.analysis:
-                if analysis in [ tuple(existingAnalysis['stats']) for existingAnalysis in existingAnalyses ]: skip.add(analysis)
-            for x in skip: args.analysis.remove(x)
+            for group in args.analysis:
+                if '_'.join(group) in existing_analyses:
+                    skip.add(group)
+            for x in skip:
+                args.analysis.remove(x)
             if len(args.analysis) == 0:
                 sys.stdout.write('%'); sys.stdout.flush() # Skipping
                 exit()
-    else: existingAnalyses = []
+    else:
+        existing_analyses = {}
+        existing_json_stats = {}
     if cur: cur.close()
     if con: con.close()
 
     ## Finally, we now start analyzing the data...
-    ping.change('|',totalReads)
+    ping.change('|',total_reads)
     data = [collections.defaultdict(int) for x in range(0,len(args.analysis))] # a list of dictionaries, one for every analysis group.
     if args.SAM:
-        for stat in availableStats:
-            availableStats[stat].process = availableStats[stat].SAM
-        if args.SAM == 'stdin':
-            sys.argv = '' ## Done so fileinput takes stdin and not args.
-            inputData = csv.reader(fileinput.input(), delimiter='\t')
-        else: 
-            inputData = csv.reader(fileinput.input(inputFile), delimiter='\t') # fileinput also can read a file on disk
-        header = ''
+        # for stat in availableStats:
+        #     availableStats[stat].process = availableStats[stat].SAM
+        # if args.SAM == 'stdin':
+        #     sys.argv = '' ## Done so fileinput takes stdin and not args.
+        #     inputData = csv.reader(fileinput.input(), delimiter='\t')
+        # else: 
+        #     inputData = csv.reader(fileinput.input(inputFile), delimiter='\t') # fileinput also can read a file on disk
+        # header = json.dumps('')
+        pass
     elif args.BAM:
         for stat in sorted_analyses:
             availableStats[stat]['init'] = availableStats[stat]['class']({'fileReader':args.BAM})
         if args.BAM == 'htspython':
             inputData = hts.Bam(inputFile, "rb")
-            header = 'htspython currently does not support reading the BAM header. If this upsets you please mail the author Brent Pedersen via GitHub:)'
+            header = json.dumps('htspython currently does not support reading the BAM header. If this upsets you please mail the author Brent Pedersen via GitHub:)')
         elif args.BAM == 'pysam':
             inputData = pysam.Samfile(inputFile, "rb")
-            header = inputData.header
+            header = json.dumps(inputData.header)
 
-    ## Do .before work:
+    ## Do .before work - run ONCE per module.
     for analysis in sorted_analyses:
         if hasattr(availableStats[analysis]['init'],'before'):
             exec(availableStats[analysis]['init'].before)
 
-    ## If I was to write the code myself:
-    for reads_processed, read in enumerate(inputData):
-        ping.pong(reads_processed)
-        FLAG = intToFlag[read.flag]
-        RNAME = intToFlag[read._b.core.tid]
-        data[0][(FLAG,RNAME)] += 1
+    ## CPython - the program that usually runs your python scripts - sucks at inlining function calls.
+    ## Pypy, a sepurate program that can execute python scripts, doesn't have this problem - however from a recent
+    ## poll in biostars (https://www.biostars.org/p/181266/) it appears few people have pypy installed.
+    ## As a result, i'm going to inline the code at run-time below, which is why stat functions must be strings not actual functions:
+    execute  = '\n'
+    execute += 'for reads_processed, read in enumerate(inputData):\n'
+    execute += '    ping.pong(reads_processed)\n'
+    for analysis in sorted_analyses:
+        analysis_method = availableStats[analysis]['init'].METHOD.splitlines()
+        whitespace_count = 0
+        whitespace_marker = None
+        for line in analysis_method:
+            whitespace_count = len(line) - len(line.lstrip())
+            if whitespace_count: # if there is indentation.
+                whitespace_marker = line[0]
+                break
+        if whitespace_marker is None:
+            reindended_method = ''
+            for line in analysis_method:
+                reindended_method += '    ' + line + '\n'
+        else:
+            reindended_method = ''
+            for line in analysis_method:
+                indentation_level = 0
+                while line[:whitespace_count] == whitespace_marker*whitespace_count:
+                    line = line[whitespace_count:]
+                    indentation_level += 1
+                reindended_method += ((1+indentation_level)*'    ') + line + '\n' # +1 to make sure everything is indented at least once for our "for reads_processed...." loop.
+        execute += reindended_method
 
-    ## But due to the variable nature of the code, here's the general solution:
-    #results = dict.fromkeys(sorted_analyses)
-    #for reads_processed, read in enumerate(inputData):
-    #    ping.pong(reads_processed)
+    for idx, analysis in enumerate(args.analysis):
+        if all([ availableStats[x]['init'].LINKABLE for x in analysis ]):
+            if len(analysis) == 1:
+                execute += '    data[' + str(idx) + '][('+ analysis[0] + ',)] += 1\n'
+            else: 
+                execute += '    data[' + str(idx) + '][('+ ','.join(analysis) + ')] += 1\n'
+    if args.debug: print execute
+    exec(execute)
 
-    #    for analysis in sorted_analyses:
-    #        availableStats[analysis]['init'].METHOD(read)
-    #        # in results['FLAG'] is value
-    #    for a, analysis in enumerate(args.analysis):
-    #        data[a][tuple([ results[stat] for stat in analysis ])] += 1
-
-
-    '''    ## Read input file:
-        for reads_processed, read in enumerate(inputData):
-            try:
-                results = dict.fromkeys(sorted_analyses)
-                ping.pong(reads_processed)
-                for analysis in sorted_analyses:
-                    exec(availableStats[analysis]['init'].METHOD)
-                    # Now all of the stats for this line have been generated (and only once, irrispective of grouping)
-                for a, analysis in enumerate(args.analysis):
-                    thisLine = tuple([ results[stat] for stat in analysis ])
-                    data[a][thisLine] += 1
-            except IndexError:
-                ## Extremely crude header-skipping for SAM files!
-                if len(line) < 11: header += line
-                if args.debug: print 'Skipped line: ' + str(line)
-                exit()
-    '''
-    print  data[0]
-    exit()
-
-
-
-
-
-
-
-    ## All done reading file for stats. Time to add that data to the database.
-    ping.change('@',len(args.analysis))
-
+    ## Set up some generic database-specific things:
     if args.pguser == None:
         con = sqlite3.connect(args.output, timeout=120)
         con.isolation_level = 'EXCLUSIVE'
         con.execute('BEGIN EXCLUSIVE')
         cur = con.cursor()
+        delim = '?'
     else:
         con = psycopg2.connect(dbname=args.output, user=args.pguser, host=args.pghost, password=args.pgpass)
         cur = con.cursor()
+        delim = '%s'
+    new_json_stats = {} # stores the json_stats data
+    new_analyses = {} # stores the analysis metadata
 
-    analysisJSON = []
-    for a, analysis in enumerate(args.analysis):
-        # We start by building up the SQL "CREATE TABLE" and "INSERT" queries...
-        listOfTuples = []
-        pgMegaString = ''
-        createColumn, insertColumn, columnQ = '','',''
-        for stat in analysis:
-            ping.pong(a)
-            statType = availableStats[stat].SQL
-            createColumn += (stat + ' ' + statType + ',')
-            insertColumn += (stat + ',');
-            if args.pguser == None: columnQ += '?,'
-            else: columnQ += '%s,'
+    ## From here on out, we process things one analysis group at a time, until its time to update the INFO table.
+    for group_idx, group in enumerate(args.analysis):
+        tableName = file_hash + '_' + '_'.join(group)            # e.g. 2dfdd09ddb42ef2fab575012815a06b6_TLEN_RNAME. Not used for JSON.
+        cur.execute('DROP TABLE IF EXISTS "' + tableName + '"') # if --writeover wasnt set, and there was already data, the analysis group would have been dropped earlier.
+        cur.execute('DROP INDEX IF EXISTS "' + tableName + '_INDEX"')
+        ping.change('&',len(args.analysis))
 
-        ## Add the counts on the end of the above
-        createColumn += 'counts INTEGER'
-        insertColumn += 'counts'
-        if args.pguser == None: columnQ += '?'   # use ? for SQLite
-        else:                   columnQ += '%s'  # use %s for Postgres
+        ## Now what we do depends on if we're linkable or not:
+        if all([ availableStats[x]['init'].LINKABLE for x in group ]):
+            ## data is currently a list of dictionaries, where the keys of those dictionaries are immutable tuples and the values are read counts. This is not a bag of fun.
+            ## So for every dictionary we convert it to a mutable list-of-lists (i.e. a table, for the SQL database). We call this table "table".
+            table = []
+            for stat_columns,read_count in data[group_idx].items():
+                table.append(list(stat_columns) + [read_count])
+                # ping.pong(group_idx) # Could turn this on if this convertion consistently takes longer than 1 second ...
 
-        ## Check if we actually have any data (this is a real SAM/BAM file) before writing anything to the database:
-        if len(data[a]) == 0:
-            print 'ERROR: No data was collected from this file - if this is a binary file, it is not in BAM format. If it is a text file, it is not in SAM format!'
-            exit()
+            ## Do .after work. As you can see, this happens for every time the analysis is used in an analysis group, not just once like .before
+            ## This is because .after is often used to modify the generated data, like for RNAME, it converts numerical chromosome ids to real names.
+            for column, analysis in enumerate(group):
+                if hasattr(availableStats[analysis]['init'],'after'):
+                    ping.pong(group_idx)
+                    exec(availableStats[analysis]['init'].after)
 
-        ## Chromsome is a pain, because it's not stored at the read-level per-se, rather it's converted from an int to the actual chromosome using a mapping in the header
-        ## This means that if we were to bin reads based on their actual chromosome name, it would be really slow. Much faster to bin using the original ints, then convert
-        ## to an actual chromosome name.... now.
-        if 'chromosome' in analysis: chrIDX = analysis.index('chromosome')
+            ## Dont add anything when there's nothing to add:
+            if len(table) == 0 or (len(table) == 1 and all(value == None for value in table[0])):
+                if debug: print '\nERROR: No data was collected from the (' + ' '.join(group) + ') analysis, so nothing at all was written to the database!'
+                continue # Move on to next analysis group
 
-        ## Iterate the data object:
-        for thisTuple,value in data[a].items():
-            ping.pong(a)
-            ## poppin' tuples in the club
-            tupleToList = list(thisTuple)
-            tupleToList.append(value);
+            ## OK, now time to add that data to a new table.
+            ping.change('@',len(args.analysis))
 
-            ## Hastily fix broken things while no one is looking
-            if args.BAM and 'chromosome' in analysis:
-                if tupleToList[chrIDX] == -1: tupleToList[chrIDX] = 'Unmapped'
-                else: tupleToList[chrIDX] = inputData.getrname(tupleToList[chrIDX])
-            if args.SAM and 'chromosome' in analysis:
-                if tupleToList[chrIDX] == '*': tupleToList[chrIDX] = 'Unmapped'
-
-            ## If we are using SQLite:
+            ## Set up LINKABLE=True specific SQL stuff:
             if args.pguser == None:
-                returnOfTheTuple = tuple(tupleToList)
-                listOfTuples.append(returnOfTheTuple)
+                createColumn = ', '.join([stat+' '+availableStats[stat]['init'].SQL for stat in group]) + ', counts INTEGER'
+                columnQ      = ', '.join([delim]*(len(group)+1)) # +1 for the counts column
             else:
-                for index, thing in enumerate(tupleToList):
-                    if thing == None: thing = '\N'      ## postgres identifies null as \N  -  note that its not a special symbol, it's literally just a backslash and a capital N. This can be changed with " WITH NULL AS 'yolo' " if you'd rather yolo was the signifier for null.
-                    tupleToList[index] = str(thing)
-                thisRow = '\t'.join(tupleToList)
-                thisRow += '\n'
-                pgMegaString += thisRow
+                pgMegaString = '' # For postgres we do something a bit funny - we use it's COPY function and provide a huge string, as it's really fast.
+                column_idxs = range(len(table[0]))
+                for row_idx in xrange(0,len(table)):
+                    for column_idx in column_idxs:
+                        if table[row_idx][column_idx] == None:
+                            table[row_idx][column_idx] = '\N' ## postgres identifies null as \N  -  note that its not a special symbol, it's literally just a backslash and a capital N. This can be changed with " WITH NULL AS 'tumblr' " if you'd rather 'tumblr' was the signifier for something with no value.
+                    pgMegaString = '\t'.join(table[row_idx]) + '\n'
 
-        tableName = fileHash + '_' + '_'.join(analysis) 
-        fileName = os.path.basename(args.input[0])
-        filePath = os.path.abspath(args.input[0])[:-len(fileName)]
-        creationTime = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(os.path.getmtime(args.input[0])))
-        analysisTime = str(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')) ## Year-Month-Day Hour:Minute:Second
-        sampleSize = os.path.getsize(args.input[0])
-        tableSize = len(data[a])
-        header = json.dumps(header)
-        analysisJSON.append({
-            'stats':analysis,
-            'rows':tableSize,
-            'types': [ availableStats[stat].SQL for stat in analysis ],
-            'versions': [ availableStats[stat].VERSION for stat in analysis ],
-            'parameters': [ availableStats[stat].PARAMETERS for stat in analysis ],
-            'performed': analysisTime
-        })
-        del data[a]
-
-        if args.pguser == None:
-            cur.execute('DROP TABLE IF EXISTS "' + tableName + '"')
+            ## Create table
             cur.execute('CREATE TABLE "' + tableName + '"(' + createColumn + ')')
-            cur.executemany('INSERT INTO "' + tableName + '"(' + insertColumn + ') values ( ' + columnQ + ' )', listOfTuples)
+            if args.pguser == None:
+                cur.executemany('INSERT INTO "' + tableName + '" VALUES ( ' + columnQ + ' )', table)
+            else:
+                cur.copy_from(StringIO.StringIO(pgMegaString), '"' + tableName + '"')
             con.commit()
+            new_analyses['_'.join(group)] = {
+                'rows'       :   len(table),
+                'stat_hashes':   [ availableStats[stat]['hash'] for stat in group ],
+                'performed'  :   int(time.mktime(time.gmtime()))*1000 # milliseconds since unix epoch in GMT/UMT
+            }
         else:
-            cur.execute('DROP TABLE IF EXISTS "' + tableName + '"')
-            cur.execute("CREATE TABLE \"" + tableName + "\"(" + createColumn + ")")
-            pgCopyTime = StringIO.StringIO(pgMegaString)
-            cur.copy_from(pgCopyTime, '"' + tableName + '"')
-            con.commit()
+            analysis = group[0]
+            exec('unlinkable_result = '+analysis) # I don't want to force unlinkables to have to put their data anywhere special other than their variable name, and this works.
+            if availableStats[analysis]['init'].SQL == 'JSON':
+                try: json.dumps(unlinkable_result)
+                except TypeError:
+                    print '\nERROR: The module "' + analysis + ' has returned ' + str(type(unlinkable_result)) + ' data that can not be JSON encoded.'
+                    print '       This is a bug in the module. Please advise whomever wrote this stat that it occured and how (if you can)'; exit()
+                new_json_stats[analysis] = unlinkable_result
+                new_analyses['_'.join(group)] = {
+                    'rows'       :   None,
+                    'stat_hashes':   [ availableStats[stat]['hash'] for stat in group ],
+                    'performed'  :   int(time.mktime(time.gmtime()))*1000 # milliseconds since unix epoch in GMT/UMT
+                }
+            else:
+                if type(unlinkable_result) != list:
+                    print '\nERROR: The module ' + analysis + ' has returned a ' + str(type(unlinkable_result)) + ' and not a list of lists.'
+                    print '       This is a bug in the module. Please advise whomever wrote this stat that it occured and how (if you can)'; exit()
+                for row in unlinkable_result:
+                    if type(row) != list and type(row) != tuple:
+                        print '\nERROR: The module ' + analysis + ' has returned a list of ' + str(type(unlinkable_result)) + ' and not a list of lists.'
+                        print '       This is a bug in the module. Please advise whomever wrote this stat that it occured and how (if you can)'; exit()
 
+                createColumn = ', '.join([x[0]+' '+x[1] for x in availableStats[analysis]['init'].SQL]) # tuple/list of (column_name,column_type) tuples/lists
+                cur.execute('CREATE TABLE "' + tableName + '"(' + createColumn + ')')
+                # Here we won't use Postgres' COPY function, since this gives the user a bit more flexibility in adding special postgres-specific datatypes (lists/etc).
+                cur.executemany('INSERT INTO "' + tableName + '"(' + ', '.join([x[0] for x in availableStats[analysis]['init'].SQL]) + ') values ( ' + ', '.join([delim for x in availableStats[analysis]['init'].SQL]) + ' )', unlinkable_result)
+                con.commit()
+                new_analyses['_'.join(group)] = {
+                    'rows'       :   len(unlinkable_result),
+                    'stat_hashes':   [ availableStats[stat]['hash'] for stat in group ],
+                    'performed'  :   int(time.mktime(time.gmtime()))*1000 # milliseconds since unix epoch in GMT/UMT
+                }
 
-    '''
-    OK John, just a tiny TINY bit left to go.
-    Make sure pinger symbols and parent process match up.
-    Can we know % of indexing done? (for SQLite and Postgres)
-    A SERVER table in the database for telling node how to display the main data table page. Key/Value pairs.
-    Needs to be flexible so people can have as many columns as they like and is involved in replies for info data table, but also somewhat standardized so that people can click on multiple
-    rows of multiple front-ends to compare data.
-    '''
+    ## DONE MAKING TABLES! Now we just have to update the INFO table!
+    ## First we grab some meta data about the file
+    file_name = os.path.basename(args.input[0])                  # Always replaces
+    file_path = os.path.abspath(args.input[0])[:-len(file_name)]  # Always replaces
+    creation_time = int(time.mktime(time.gmtime(os.path.getmtime(args.input[0]))))*1000 # NEVER replaces. Creation of file, again milliseconds from unix epoch in GMT/UMT
+    analysis_time = int(time.mktime(time.gmtime()))*1000    # Always replaces. Time right now.
+    sample_size = os.path.getsize(args.input[0])                 # If this is different, you're going to get an error (same hash different file size? hm...)
 
-    ## INFO TABLE ADDITION / MODIFICATION
-    if len(existingAnalyses) == 0:
-        analysisJSON = json.dumps(analysisJSON)
-        if args.pguser == None: placeholder = '(?, ?, ?, ?, ?, ?, ?, ? )'
-        else:                   placeholder = '(%s,%s,%s,%s,%s,%s,%s,%s)'
-        cur.execute('INSERT INTO "INFO" ("sampleHash","analyses",    "sampleFileName","samplePath","creationTime","sampleSize","analysisTime", "header") VALUES ' + placeholder,
-                                        ( fileHash,    analysisJSON,  fileName,        filePath,    creationTime,  sampleSize,  analysisTime,   header )                        )
+    ## If this is the first time this sample has had an entry in the INFO table, we have to make a new row:
+    if len(existing_analyses) == 0:
+        for key,value in new_analyses.items():   existing_analyses[key] = value
+        for key,value in new_json_stats.items(): existing_json_stats[key] = value
+        existing_analyses   = json.dumps(existing_analyses)
+        existing_json_stats = json.dumps(existing_json_stats)
+        cur.execute('INSERT INTO "INFO" ("hash",    "path",    "size",      "header", "analyses",        "file_name", "json_stats",        "last_updated", "creation_time", "total_reads") VALUES (' +  ', '.join((delim,)*10) + ')',
+                                        ( file_hash, file_path, sample_size, header,   existing_analyses, file_name,   existing_json_stats, analysis_time,  creation_time,   total_reads )                                        )
+    ## An INFO row already exists for this sample...
     else:
-        ## An INFO row already exists for this sample...
-        for existingAnalysis in existingAnalyses:
-            if tuple(existingAnalysis['stats']) not in args.analysis: analysisJSON.append(existingAnalysis)
-        analysisJSON = json.dumps(analysisJSON)
-        if args.pguser == None: sql = 'UPDATE "INFO" SET "analyses"=?, "sampleFileName"=?, "samplePath"=?, "analysisTime"=?, "header"=? WHERE "sampleHash"=?'
-        else:                   sql = 'UPDATE "INFO" SET "analyses"=%s, "sampleFileName"=%s, "samplePath"=%s, "analysisTime"=%s, "header"=%s WHERE "sampleHash"=%s'
-        cur.execute(sql,                                 (analysisJSON,  fileName,            filePath,        analysisTime,      header,           fileHash ))
-    # cur.execute('DROP INDEX IF EXISTS "' + tableName + '_INDEX"')
-    # cur.execute('CREATE INDEX "' + tableName + '_INDEX" on "' + tableName + '" (' + ','.join(linkedStats) + ',counts )')
+        for key,value in new_analyses.items():   existing_analyses[key] = value
+        for key,value in new_json_stats.items(): existing_json_stats[key] = value
+        existing_analyses   = json.dumps(existing_analyses)
+        existing_json_stats = json.dumps(existing_json_stats)
+        sql = 'UPDATE "INFO" SET "path"=$, "analyses"=$, "file_name"=$, "json_stats"=$, "last_updated"=$ WHERE "hash"=$'.replace('$',delim)
+        cur.execute(sql, (file_path, existing_analyses, file_name, existing_json_stats, analysis_time, file_hash))
     con.commit()
     cur.close()
     con.close()

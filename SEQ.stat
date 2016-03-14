@@ -3,8 +3,8 @@ class stat:
         self.DESCRIPTION        =  ['DNA sequence of read. May include unmapped bases.','ACTAGCTACGCTAG...']
         self.LINKABLE           =  True
         self.SQL                =  'TEXT'
-        if INFO['fileReader']   == 'sam':       self.METHOD = 'RNAME = read[9]'
-        elif INFO['fileReader'] == 'pysam':     self.METHOD = 'RNAME = read.seq'
-        elif INFO['fileReader'] == 'htspython': self.METHOD = 'RNAME = read.seq'
+        if INFO['fileReader']   == 'sam':       self.METHOD = 'SEQ = read[9]'
+        elif INFO['fileReader'] == 'pysam':     self.METHOD = 'SEQ = read.seq'
+        elif INFO['fileReader'] == 'htspython': self.METHOD = 'SEQ = read.seq'
         else:                                   self.METHOD =  None
 addStat('SEQ',[])

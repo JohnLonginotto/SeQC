@@ -3,8 +3,8 @@ class stat:
         self.DESCRIPTION        =  ['Sequencing machines confidence score of SEQ DNA (per base)','hhfghhafdffhee...']
         self.LINKABLE           =  True
         self.SQL                =  'TEXT'
-        if   INFO['fileReader'] == 'sam':       self.METHOD = 'RNAME = read[10]'
-        elif INFO['fileReader'] == 'pysam':     self.METHOD = 'RNAME = read.qual'
-        elif INFO['fileReader'] == 'htspython': self.METHOD = 'RNAME = ''.join([chr(x+33) for x in read.qual])' # (i cannot find an easier way to get this)
+        if   INFO['fileReader'] == 'sam':       self.METHOD = 'QUAL = read[10]'
+        elif INFO['fileReader'] == 'pysam':     self.METHOD = 'QUAL = read.qual'
+        elif INFO['fileReader'] == 'htspython': self.METHOD = 'QUAL = "".join([chr(x+33) for x in read.qual])' # (i cannot find an easier way to get this)
         else:                                   self.METHOD =  None
 addStat('QUAL',[])

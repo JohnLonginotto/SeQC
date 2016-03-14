@@ -1,0 +1,11 @@
+class stat:
+    def __init__(self,INFO):
+        self.DESCRIPTION        =  ['Total Number of Mapped Reads','14534513'] # Note that this is not read pairs, where both are mapped.
+        self.LINKABLE           =  False
+        self.SQL                =  'JSON'
+        self.dependencies       =  ['FLAG']
+        self.before             =  'TMR = 0'
+        self.METHOD             =  'if "c" in FLAG: TMR += 1'
+        # Once SeQC has finished processing the file, it will look for a variable with the same name as the module name defined below.
+        # Here TMR is a single number, so thats fine. We could also pass a string, list/tuple or dictionary - but no sets!
+addStat('TMR',[])

@@ -1,0 +1,13 @@
+class stat:
+    def __init__(self,INFO):
+        self.DESCRIPTION        =  ['Per-read GC rounded down to the nearest int. Ns ignored.','50']
+        self.LINKABLE           =  True
+        self.SQL                =  'INT'
+        self.dependencies       = ['SEQ'] # we need the DNA sequence.
+        self.METHOD             = '''
+at  = SEQ.count('A') + SEQ.count('T')
+cg  = SEQ.count('C') + SEQ.count('G')
+try: GC = (cg*100) / (at+cg)
+except ZeroDivisionError: GC = None
+'''
+addStat('GC',[])
