@@ -1,11 +1,10 @@
 class stat:
-    # As you have probably noticed by now, both pysam and htspython deviate from the SAM spec in several different places,
-    # however it is often possible to bring them all in to line. The exception, however, is TAGs: http://i.imgur.com/6OIOl1x.png
-    # So in light of this, our only option for now is that tags can only be retrieved via samtools.
     def __init__(self,INFO):
-        self.DESCRIPTION      =  ['Optional read-level tags, space delimited (SAM ONLY)','XA:i:0 MD:Z:50 NM:i:0']
-        self.LINKABLE         =  True
-        self.SQL              =  'TEXT'
-        if INFO['fileReader'] == 'sam': self.METHOD = 'TAGS = " ".join(read[11:])'
-        else:                           self.METHOD =  None
+        self.DESCRIPTION        =  [ 'All optional tags' , '[ (NM,2) , (MD,50)   ]' ]
+        self.LINKABLE           =  True
+        self.SQL                =  'TEXT'
+        if   INFO['fileReader'] == 'sam':       self.METHOD = 'TAGS = [ x.split(":")[::2] for x in read[:-1].split("\t")[11:] ]'
+        elif INFO['fileReader'] == 'pysam':     self.METHOD = 'TAGS = read.get_tags()'
+        elif INFO['fileReader'] == 'htspython': self.METHOD = 'TAGS = [ (x[0],x[2]) for x in read.tags ]'
+        else:                                   self.METHOD =  None
 addStat('TAGS',[])

@@ -165,7 +165,6 @@ for statName,statData in sorted(availableStats.items()):
     if len(stat.DESCRIPTION) != 2: print '\nERROR: The DESCRIPTION for stat ' + statName + ' needs two values, an explanation and an output example.'; exit()
     if 60 < len(stat.DESCRIPTION[0]): print '\nERROR: The explination for stat ' + statName + ' needs to be under 70 characters. If this is not possible, put in a URL!'; exit()
     if 30 < len(stat.DESCRIPTION[1]): print '\nERROR: The example output for stat ' + statName + ' needs to be under 30 characters. Put N/A if its way too long, or use ellipses..'; exit()
-    if ',' in stat.DESCRIPTION[1]: print '\nERROR: The example output for stat ' + statName + ' needs to be under 30 characters. Put N/A if its way too long, or use ellipses..'; exit()
     if any('%' in s for s in stat.DESCRIPTION): print '\nERROR: The module used to print the --help message cant handle "%" :(\nPlease remove them from your ' + statName + ' module.'; exit()
 
     # SQL:
@@ -261,7 +260,7 @@ parser.add_argument("--input", nargs='+', metavar='',
 parser.add_argument("--output", default='myProject.SeQC', metavar='',
     help='Optional. Name of output database (or path for SQLite). Default is "myProject".')
 parser.add_argument("--samtools", default='samtools', metavar='', 
-    help="Optional, unless it isn't. Path to samtools if it's needed and cannot be found.")
+    help="Optional, unless the path to samtools is needed and cannot be found.")
 parser.add_argument("--quiet", action='store_true',
     help='Optional. No status bars in output. Good for logs, bad for humans.')
 parser.add_argument('--writeover', action='store_true',
