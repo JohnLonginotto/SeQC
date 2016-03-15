@@ -4,7 +4,7 @@ version = 1//1 ; ''' These two lines are
 
 # The first half of this program is written in python. It will count reads in BAM/SAM files using different metrics (per chromosome, per read length, etc).
 # To learn more visit http://ac.gt/seqc or run "python ./SeQC.js.py --help"
-# The second half of this program is written in JavaScript for use in Node.js. It will create a webserver that can interact with the database created by 
+# The second half of this program is written in JavaScript for use in Node.js. It will create a webserver that can interact with the database created by
 # the Python code. You can get more information via http://ac.gt/seqc, or run "node ./SeQC.js.py --help"
 
 ## One day i'll get around to putting this up on pypi and/or npm, but for now here's instructions on how to do things on OSX:
@@ -29,6 +29,7 @@ import re
 import sys
 import csv
 import json
+import textwrap
 import time
 import types
 import urllib
@@ -48,7 +49,7 @@ except: pysamInstalled = False
 try: import hts ; from cffi import FFI as ffi; htspythonInstalled = True
 except: htspythonInstalled = False
 try: import psycopg2 ; postgresInstalled = True
-except: postgresInstalled = False  
+except: postgresInstalled = False
 
 ###########################
 ## Define built-in stats ##
@@ -103,7 +104,7 @@ def addStat(stat_name,compatible):
         if stat_name not in availableStats:
             availableStats[stat_name] = {
                 'compatible': json.dumps(compatible),
-                'class':      stat, 
+                'class':      stat,
                 'hash':       md5.hexdigest(),
                 'init':       stat(INFO),
                 'method':     method,
@@ -122,7 +123,7 @@ SeQC = os.path.abspath(__file__)                          ## Path to SeQC.js.py 
 for potentialStat in os.listdir(os.path.dirname(SeQC)):
         thisFile = os.path.join(os.path.dirname(SeQC), potentialStat)
         if thisFile.endswith('.stat'):
-            execfile(thisFile)                            ## I should upgrade this to a proper plugin/module manager, but this works fine for now. 
+            execfile(thisFile)                            ## I should upgrade this to a proper plugin/module manager, but this works fine for now.
 
 ##########################
 ## Fetch external stats ##
@@ -187,7 +188,7 @@ for statName,statData in sorted(availableStats.items()):
     if hasattr(stat,'viz') and stat.viz is not False and stat.viz is not None:
         if type(stat.viz) is not list or not (0 < len(stat.viz) < 3): print '\nERROR: The value for viz in module ' + statName + ' must be a list, with 1 or 2 values!'; exit()
         if type(stat.viz[0]) is not str: print '\nERROR: The first value for the viz parameter in module ' + statName + ' is not a string, therefore it is not a name!'; exit()
-        if len(stat.viz) is 2 and (type(stat.viz[1]) is not str and type(stat.viz[1]) is not False and stat.viz[1] is not None): 
+        if len(stat.viz) is 2 and (type(stat.viz[1]) is not str and type(stat.viz[1]) is not False and stat.viz[1] is not None):
             print '\nERROR: The code for the viz parameter in module ' + statName + ' must be a string!'; exit()
 
     # dependencies:
@@ -198,11 +199,11 @@ for statName,statData in sorted(availableStats.items()):
 
     # before
     if hasattr(stat,'before') and getattr(stat,'before',None) is not None and stat.before is not False:
-        if type(stat.before) is not str: print '\nERROR: The value for self.before in module ' + statName + ' must be None or a string!'; exit() 
+        if type(stat.before) is not str: print '\nERROR: The value for self.before in module ' + statName + ' must be None or a string!'; exit()
 
     # after
     if hasattr(stat,'after') and getattr(stat,'after') is not None and stat.after is not False:
-        if type(stat.after) is not str: print '\nERROR: The value for self.after in module ' + statName + ' must be None or a string!'; exit() 
+        if type(stat.after) is not str: print '\nERROR: The value for self.after in module ' + statName + ' must be None or a string!'; exit()
 
 ## Create a dependency graph:
 dependencyGraph = {}
@@ -259,7 +260,7 @@ parser.add_argument("--input", nargs='+', metavar='',
     help='Required. One or more SAM (and/or BAM) files to analyse.')
 parser.add_argument("--output", default='myProject.SeQC', metavar='',
     help='Optional. Name of output database (or path for SQLite). Default is "myProject".')
-parser.add_argument("--samtools", default='samtools', metavar='', 
+parser.add_argument("--samtools", default='samtools', metavar='',
     help="Optional, unless the path to samtools is needed and cannot be found.")
 parser.add_argument("--quiet", action='store_true',
     help='Optional. No status bars in output. Good for logs, bad for humans.')
@@ -305,7 +306,7 @@ def get_all_modules_to_run(stat_name):
 if args.analysis is None:
     args.analysis = [('RNAME', 'TYPE', 'FLAG', 'GC'),('TLEN',)] # Default analyses
 
-if not args.SAM and not args.BAM: 
+if not args.SAM and not args.BAM:
     print '   [ ' + str(len(availableStats)) + ' Modules Loaded! ]'
 # We make each linked group of stats a set, before converting to a tuple, in the event that the user adds the same stat twice, eg. -a gc gc becomes just (gc).
 # We also sort by stat name in each linked group of stats so "-a tlen gc" becomes (gc,tlen).
@@ -324,7 +325,7 @@ for group in args.analysis:
         allAnalyses.update(get_all_modules_to_run(stat)) # Recurses all dependancies too.
     allGroups.add(tuple(sorted(group)))                  # sorted returns a list but we need a hashable tuple.
 args.analysis = sorted(allGroups)                        # A sorted list of sorted tuples.
-sorted_analyses = []                                     # This is a non-redundant list of the analyses used (and there dependancies), in the order they need to be run. 
+sorted_analyses = []                                     # This is a non-redundant list of the analyses used (and there dependancies), in the order they need to be run.
 for analysis in topological_order:
     if analysis in allAnalyses:
         sorted_analyses.append(analysis)
@@ -363,7 +364,7 @@ Please use the exact name of the output file you want (you can always rename it 
         print '   [ Using Postgres for output ]'
         if postgresInstalled:
             if args.pgpass == None:
-                if args.debug: 
+                if args.debug:
                     password = 'PASSWORD_HIDDEN' # we dont want --debug to print passwords! Since --debug on the parent never executes jobs anyway, this is fine.
                 else:
                     if sys.stdin.isatty():
@@ -382,11 +383,11 @@ Please install it via "pip install --user psycopg2"'''; exit()
     ## If a file becomes inaccesible later it will be skipped, but a check early on dosen't hurt...
     usedInputs = []
     for inputFile in args.input:
-        if not os.path.isfile(inputFile) or not os.access(inputFile, os.R_OK): 
+        if not os.path.isfile(inputFile) or not os.access(inputFile, os.R_OK):
             print '\nERROR: The input file ' + str(inputFile) + ' could not be accessed. Are you sure it exists and we have permissions to read it? (continuing without it)'
         else: usedInputs.append(inputFile)
 
-    ## Most parameters to all subprocesses are static and never change, such as the database connection details or --writeover. 
+    ## Most parameters to all subprocesses are static and never change, such as the database connection details or --writeover.
     ## Here we collect them all into 1 string called explicitStats:
     explicitStats = ''
     for group in args.analysis: explicitStats += ' --analysis ' + ' '.join(group)
@@ -404,7 +405,7 @@ Please install it via "pip install --user psycopg2"'''; exit()
                     if i == 0 and not section: return None  # Empty file.
                     else:                      return False # SAM file.
 
-    ## We only need samtools if we have one or more BAM files. Here we check all files with the bamCheck function, 
+    ## We only need samtools if we have one or more BAM files. Here we check all files with the bamCheck function,
     ## and if a binary file is found, we check if we can find/execute samtools.
     gotSAM,gotBAM,samtoolsInstalled = False, False, None # If user gives lots of files, we could have both.
     DEVNULL = open(os.devnull, 'wb')
@@ -456,7 +457,7 @@ Please install it via "pip install --user psycopg2"'''; exit()
     elif not blocking['sam']: INFO = {'fileReader':'sam'}
     print '   [    Using',INFO['fileReader'],'   ]'
 
-    ## The table schema for the INFO table. 
+    ## The table schema for the INFO table.
     ## The INFO table stores metadata on all the analysed files, as well as which stats (or linked groups of stats) have been collected for each file.
     ## It is basically 1 row per analysed BAM/SAM file (or rather, per input file MD5 checksum).
     ## Regarding data privacy, SeQC make no distinction between users accessing data - be it in-house, or across the globe. It also makes no distinction between
@@ -477,7 +478,7 @@ Please install it via "pip install --user psycopg2"'''; exit()
                         )'''
     ## The data gets added to INFO by subprocesses (after all stats for that input file have been calculated).
 
-    ## The table schema for the SERVER table. 
+    ## The table schema for the SERVER table.
     ## Very simple key-value storage. Will contain information on what the landing page should look like, who can access the webserver, etc.
     ## Data here should never leave the server itself. If it already exists in the output database we do nothing.
     serverTableCreation = '''CREATE TABLE "SERVER" (
@@ -492,10 +493,10 @@ Please install it via "pip install --user psycopg2"'''; exit()
 
     ## The table schema for the METHOD table. It stores the code for both stats AND visualization code.
     ## Regarding stat data, in order to make sure different users can write their own stats and share/compare the results with one another, we need a
-    ## way to make sure that the stats calculated differently are not compared side-by-side without some sort of warning (even if they have the same name). 
+    ## way to make sure that the stats calculated differently are not compared side-by-side without some sort of warning (even if they have the same name).
     ## We do this by MD5ing the code that generates the stat (but after cutting out it's self.COMPATIBLE data and sticking it in the compatible column).
     ## We do essentially the same thing with the visualization code, except this code does not have compatibility issues.
-    ## Please bear in mind that if you share your data, you also share the methods to create it. 
+    ## Please bear in mind that if you share your data, you also share the methods to create it.
     methodTableCreation = '''CREATE TABLE "METHOD" (
                             "hash"       TEXT PRIMARY KEY,
                             "type"       TEXT,
@@ -637,7 +638,7 @@ You can run them manually, also with or without a "--debug", to see more informa
         else: allDone.append(msg)
         del subprocesses[theFile]
         try: del outputs[theFile]
-        except KeyError: pass 
+        except KeyError: pass
 
     ## Subprocesses always respond with 1 character of status data every 1 second (unless they have become unresponsive)
     ## This is because when I first wrote SeQC 2 years ago, I didnt know about select.select() and non-blocking stdout reading.
@@ -766,7 +767,7 @@ elif args.BAM or args.SAM:
                 self.nextPing = 1 + time.time()
     ping = pinger(1)
 
-    ## Get both MD5 hash and read count at the same time. 
+    ## Get both MD5 hash and read count at the same time.
     def MD5andCount(inputFile,samtools):
         ## We want to know the readcount of the BAM/SAM file to make status bars, but running samtools view -c takes an unacceptibly long time. MD5 however is very fast.
         ## We can do both simultaniously, essentially requiring the same amount of time as running samtools -c on the file.
@@ -780,8 +781,8 @@ elif args.BAM or args.SAM:
         md5 = hashlib.md5()
         chunkSize = 128 * md5.block_size
         ping.change('#',sizeInBytes)
-        with open(inputFile,'rb') as f: 
-            for x,chunk in enumerate(iter(lambda: f.read(chunkSize), b'')): 
+        with open(inputFile,'rb') as f:
+            for x,chunk in enumerate(iter(lambda: f.read(chunkSize), b'')):
                 md5.update(chunk)
                 if not estimate: readCounting.stdin.write(chunk)
                 elif x < 1000:   readCounting.stdin.write(chunk)
@@ -842,7 +843,7 @@ elif args.BAM or args.SAM:
         # if args.SAM == 'stdin':
         #     sys.argv = '' ## Done so fileinput takes stdin and not args.
         #     inputData = csv.reader(fileinput.input(), delimiter='\t')
-        # else: 
+        # else:
         #     inputData = csv.reader(fileinput.input(inputFile), delimiter='\t') # fileinput also can read a file on disk
         # header = json.dumps('')
         pass
@@ -861,10 +862,71 @@ elif args.BAM or args.SAM:
         if hasattr(availableStats[analysis]['init'],'before'):
             exec(availableStats[analysis]['init'].before)
 
-    ## CPython - the program that usually runs your python scripts - sucks at inlining function calls.
-    ## Pypy, a sepurate program that can execute python scripts, doesn't have this problem - however from a recent
-    ## poll in biostars (https://www.biostars.org/p/181266/) it appears few people have pypy installed.
-    ## As a result, i'm going to inline the code at run-time below, which is why stat functions must be strings not actual functions:
+    # CPython - the program that usually runs your python scripts -
+    # sucks at inlining function calls.  Pypy, a sepurate program that
+    # can execute python scripts, doesn't have this problem - however
+    # from a recent poll in biostars
+    # (https://www.biostars.org/p/181266/) it appears few people have
+    # pypy installed.  As a result, i'm going to inline the code at
+    # run-time below, which is why stat functions must be strings not
+    # actual functions:
+
+    _Inline_code = ''
+    _Inline_indent = ''
+
+    def inline_code(text, indent=None):
+        global _Inline_code, _Inline_indent
+        if indent is None:
+            indent = _Inline_indent
+        else:
+            _Inline_indent = indent
+        text = textwrap.dedent(text)
+        _Inline_code += '\n' + indent + text.replace('\n', '\n'+indent)
+        return _Inline_code
+
+    inline_code('def collect_data(input):')
+    inline_code('    "(Automatically generated)"', indent='    ')
+    inline_code('    ping_pong = ping.pong')
+
+    # Declare local variables
+    for i in range(len(args.analysis)):
+        inline_code('group%d = data[%d]' % (i,i))
+
+    inline_code('for reads_processed, read in enumerate(input):')
+    inline_code('if reads_processed & 64 == 0: ping_pong(reads_processed)', indent='        ')
+
+    # Add stat collection/computation to function
+    for a in sorted_analyses:
+        inline_code(availableStats[a]['init'].METHOD)
+
+    # Update counters for groups
+    for i, group in enumerate(args.analysis):
+        if all([availableStats[stat]['init'].LINKABLE for stat in group]):
+            stat_tuple = '(%s,)' % ','.join(group)
+            inline_code('group%d[%s] += 1' % (i,stat_tuple))
+        else:
+            print("Group %d not linkable because it includes %s. Not counting." % i, stat)
+
+    code = inline_code('', indent='')
+
+    if args.debug:
+        print code
+
+    exec(code, globals())
+
+    # FIXME: This block should go away in production. I'm leaving it for
+    # debugging, and to inspect the generated code.
+
+    with open('inline.f', 'w') as f:
+        f.write(code)
+        import dis
+        sys.stdout = f
+        dis.dis(collect_data)
+        sys.stdout = sys.__stdout__
+
+    collect_data(inputData)
+
+    """
     execute  = '\n'
     execute += 'for reads_processed, read in enumerate(inputData):\n'
     execute += '    ping.pong(reads_processed)\n'
@@ -895,10 +957,11 @@ elif args.BAM or args.SAM:
         if all([ availableStats[x]['init'].LINKABLE for x in analysis ]):
             if len(analysis) == 1:
                 execute += '    data[' + str(idx) + '][('+ analysis[0] + ',)] += 1\n'
-            else: 
+            else:
                 execute += '    data[' + str(idx) + '][('+ ','.join(analysis) + ')] += 1\n'
     if args.debug: print execute
     exec(execute)
+    """
 
     ## Set up some generic database-specific things:
     if args.pguser == None:
@@ -1032,8 +1095,8 @@ elif args.BAM or args.SAM:
     cur.close()
     con.close()
     sys.stdout.write('!'); sys.stdout.flush()
- 
-        
+
+
 '''*/
 
 // I found some kind of weird bug in Node that if you type around 255 characters into the terminal, you fill up the STDIN pipe and stop receiving STDOUT. This is kind of dumb, so the two blocks below fix this:
@@ -1097,13 +1160,13 @@ if (argv.pghost) { pghost = argv.pghost; }  // --ph or --pghost to specify the h
 else if (argv.ph) { pghost = argv.ph; }
 else { pghost = 'localhost'; }
 
-if (argv.cpu) { var cpu = argv.cpu; }               // --cpu to specify how many postgres workers you want to use in your pool. This number should be equal to the maximum number of samples you wish to analyse at once. Here is some very good advice from Brian Carlson, author of node-postgres: 
+if (argv.cpu) { var cpu = argv.cpu; }               // --cpu to specify how many postgres workers you want to use in your pool. This number should be equal to the maximum number of samples you wish to analyse at once. Here is some very good advice from Brian Carlson, author of node-postgres:
 else { var cpu = 10; }                              // " A connection to postgres takes a non-trivial amount of RAM on the server. I'm not sure the exact amount but somewhere around 1,000 connections on our prod instance we run out of memory completely and the box stops responding.  So...we try to always keep connections under 500 just to be safe and put an AWS alarm on the box if it goes above 600."
                                                     // " So you can tune your pool to be quite a bit larger. Another thing you can do if you have a 40 core machine is use a module like http://github.com/brianc/node-forky to fork your node process onto all 40 cores.  This will give you a almost fully linear 40x speedup BUT one thing to be careful about is you will have 40 processes. "
                                                     // " Each process will have its own connection pool. So if your poolSize is 20 you'll be using 800 connections which can be dangerous. You can tweak the pool size and concurrency level of forky to get some serious throughput though. "
 
 exists = fs.existsSync(databaseFile);
-if (exists) { 
+if (exists) {
     console.log('\nFound your database file! Attempting to start the webservice...');
     db = new sqlite3.cached.Database(databaseFile);
     db.serialize(function() {                                                   // Do i need to serialize this?
@@ -1112,14 +1175,14 @@ if (exists) {
             else { console.log('... we do! Now just go to\n\n http://' + hostname + ':' + port + '/ \n\nin your browser to start analysing your data! :)\n'); postgresConnection = false; }
         });
     });
-} else { 
+} else {
     postgresConnection = 'postgres://' + pguser + ':' + pgpass + '@' + pghost + '/' + databaseFile
     pg.connect(postgresConnection, function(err, client, done) {
         if(err) {
             console.log(err)
             console.log('\nWHOOPS: The database you have specified does not exist! Please double-check the name or path and try again :)\n');
             process.exit();
-        } else { 
+        } else {
             console.log('... we do! Now just go to\n\n http://' + hostname + ':' + port + '/ \n\nin your browser to start analysing your data! :)\n');
         }
 
@@ -1129,12 +1192,12 @@ if (exists) {
 
 // Function to add objects to an existing object of objects, making branches in the tree if required.
 objectify = function (o, l, v){
-    var pl = l.pop(); 
-    l.reduce(function(o,k){ 
+    var pl = l.pop();
+    l.reduce(function(o,k){
         if(!(k in o)) o[k] = {};
-        return o[k] 
+        return o[k]
     },o)[pl] = v;
-    return o 
+    return o
 };
 
 // Got SQL errors? Theres an app for that!
@@ -1183,7 +1246,7 @@ optimizeFlagFilters = function (letters) {
 
 // Takes query conditions via user's JSON POST and returns a list sanitized/normalized SQL queries :
 sanitizeQuery = function (queryConditions) {
-    var userData = []; 
+    var userData = [];
     // Normalize/sanitize SELECT and GROUP:
     if ( ('subplotOn' in queryConditions) || ('lookingAt' in queryConditions) ) {
         if (queryConditions.subplotOn == undefined)         { return 'fail' }
@@ -1224,8 +1287,8 @@ sanitizeQuery = function (queryConditions) {
         for (var i = 0; i < type.length; i++) {
             var filter = String(type[i]).split(':');
             if (filter.length == 1) {
-                if (!isNaN(filter[0]) && (filter[0] >= 0) && (filter[0] <= 20) ) { 
-                    typeINFilters.push(filter[0]); 
+                if (!isNaN(filter[0]) && (filter[0] >= 0) && (filter[0] <= 20) ) {
+                    typeINFilters.push(filter[0]);
                 } else { return 'fail' } // Not a number between 0 and 20
             } else { return 'fail' } // Cant/wont do ranges!
         };
@@ -1245,7 +1308,7 @@ sanitizeQuery = function (queryConditions) {
         for (var i = 0; i < tlen.length; i++) {
             var filter = String(tlen[i]).split(':'); // if you try and .split() a number, you are going to have a bad time..
             if (filter.length == 1) {
-                if (!isNaN(filter[0])) { tlenINFilters.push(filter[0]); } 
+                if (!isNaN(filter[0])) { tlenINFilters.push(filter[0]); }
                 else { return 'fail' } // Not a number
             } else if (filter.length == 2) {
                 if ( !isNaN(filter[0]) && !isNaN(filter[1]) ) {
@@ -1266,7 +1329,7 @@ sanitizeQuery = function (queryConditions) {
             tlenBOTHFilters.push('tlen in (' + tlenINFilters.join(',') + ')' );
         }
 
-        if (tlenBETWEENFilters.length >= 1) { 
+        if (tlenBETWEENFilters.length >= 1) {
             tlenBOTHFilters.push(tlenBETWEENFilters.join(' OR '));
         }
         allFilters.push(tlenBOTHFilters.join(' OR '));
@@ -1281,8 +1344,8 @@ sanitizeQuery = function (queryConditions) {
         for (var i = 0; i < gc.length; i++) {
             var filter = String(gc[i]).split(':');
             if (filter.length == 1) {
-                if (!isNaN(filter[0]) && (filter[0] >= 0) && (filter[0] <= 100) ) { 
-                    gcINFilters.push(filter[0]); 
+                if (!isNaN(filter[0]) && (filter[0] >= 0) && (filter[0] <= 100) ) {
+                    gcINFilters.push(filter[0]);
                 } else { return 'fail' } // Not a number between 0 and 100
             } else if (filter.length == 2) {
                 if ( !isNaN(filter[0]) && !isNaN(filter[1]) && (filter[0] >= 0) && (filter[0] <= 100) && (filter[1] >= 0) && (filter[1] <= 100) ) {
@@ -1298,7 +1361,7 @@ sanitizeQuery = function (queryConditions) {
             gcINFilters.sort();
             gcBOTHFilters.push('gc in (' + gcINFilters.join(',') + ')' );
         }
-        if (gcBETWEENFilters.length >= 1) { 
+        if (gcBETWEENFilters.length >= 1) {
             gcBOTHFilters.push(gcBETWEENFilters.join(' OR '));
         }
         allFilters.push(gcBOTHFilters.join(' OR '));
@@ -1387,7 +1450,7 @@ doQuery = function(queryConditions, sql, res, startTime) {
         var endRequest = new Date().getTime();
         var timeDoRequest = endRequest - startTime;
         console.log('Request for SQL data:')
-        Object.keys(startQueryTimes).forEach(function(sample) { 
+        Object.keys(startQueryTimes).forEach(function(sample) {
             var thisTime = endQueryTimes[sample] - startQueryTimes[sample][1]
             console.log('"' + startQueryTimes[sample][0] + '"  -  ' + thisTime + 'ms')
         });
@@ -1421,13 +1484,13 @@ Why all this complexity? Well actually this makes updating/improving the SeQC pr
 - The vizulization code gets updated VERY frequently as it is by far the most complicated code in the project. As a user of SeQC, you do not need to do anything to get the latest code! Just refresh the webpage :)
 - SeQC takes your data privacy incredibly seriously - because the above three queries are the only queries an attacker could possibly use to talk to your server, the codebase is small and the risk of code execution is zilch. There are no mammoth PHP/CGI scripts which would take a week to deduce what they are actually doing. All the code executed on the server is in this file and its all very very simple!
 - To run an 'offline' instance of SeQC, you just have to copy the code from http://ac.gt/seqc/1/ to your local directory, and your webservice will use that without having to visit ac.gt first
-- Writing your own custom vizulization code is easy! Just copy the template you want to edit from http://ac.gt/seqc/1/ (say, SeQC.css), put it in the local node folder, and edit it! Dont like the colours? Choose your own! 
+- Writing your own custom vizulization code is easy! Just copy the template you want to edit from http://ac.gt/seqc/1/ (say, SeQC.css), put it in the local node folder, and edit it! Dont like the colours? Choose your own!
 - If you want to share your custom vizulizations with the world, e-mail john (longinotto@immunbio.mpg.de) with your javascript/css code, and I will host it on http://ac.gt/seqc/ on a different visualization version number. To access it, just change your visualization version number at the very top of this file!
 
 */
 
 restapi.use(express.static(__dirname, { maxAge:1, expires:1 })); // If you are frequently updating local code and do not want to cache anything, change maxAge and expires to 1ms :)
-restapi.use(compress());  
+restapi.use(compress());
 
 restapi.get('/samples', function(req, res){
     var sampleRequestStart = new Date().getTime();
@@ -1510,7 +1573,7 @@ restapi.get('*', function(req, res) {
         });
     }).on('error', function(e) {
         console.log("Got error: " + e.message);
-    }); 
+    });
 });
 
 restapi.listen(port);
