@@ -1,5 +1,6 @@
 class stat:
     def __init__(self,INFO):
+        self.NAME                = 'RNEXT'
         self.DESCRIPTION        =  ['POS of next read in pair.','654569']
         self.LINKABLE           =  True
         self.SQL                =  'INT'

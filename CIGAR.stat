@@ -1,5 +1,6 @@
 class stat:
     def __init__(self,INFO):
+        self.NAME               = 'CIGAR'
         self.DESCRIPTION        =  ['CIGAR string','22S54M']
         self.LINKABLE           =  True
         self.SQL                =  'TEXT'
@@ -7,4 +8,36 @@ class stat:
         elif INFO['fileReader'] == 'pysam':     self.METHOD = 'CIGAR = read.cigarstring'
         elif INFO['fileReader'] == 'htspython': self.METHOD = 'CIGAR = str(read.cigar)' # Do i need this str() ?
         else:                                   self.METHOD =  None
+
+    def postprocess_method(self, code):
+            """
+            Postprocess inlined function source code. This stat is really just
+            an accessor for a field of the read. As a performance improvement,
+            if the stat is used a small number of times (like, 1) go ahead and
+            do a text replacement of the "CIGAR = rvalue" and "groups[CIGAR] +=1"
+            to eliminate the local variable and simply fetch and use the data
+            once.
+
+            Before:
+                    CIGAR = read[5]
+                    ...
+                    groups1[(CIGAR,)] += 1
+
+            After:
+                    ...
+                    groups1[(read[5],)] += 1
+            """
+            with open('cigar.out', 'w') as f:
+                    f.write(code)
+                    f.write("Count of cigar is %d" % code.count('CIGAR'))
+                    if code.count('CIGAR') == 2:
+                            access_code = self.METHOD.split(' = ')[1]
+                            import re
+                            code = re.sub(r'^\s+CIGAR = [^\n]*$', '', code, flags=re.MULTILINE)
+                            code = re.sub(r'\bCIGAR\b', access_code, code)
+                    f.write("Postprocessed:")
+                    f.write(code)
+
+            return code
+
 addStat('CIGAR',[])

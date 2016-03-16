@@ -1,5 +1,6 @@
 class stat:
     def __init__(self,INFO):
+        self.NAME                = 'TLEN'
         self.DESCRIPTION        =  ['Distance between first mapped base and last in fragment','150']
         self.LINKABLE           =  True
         self.SQL                =  'INT'

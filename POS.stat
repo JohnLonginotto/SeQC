@@ -1,5 +1,6 @@
 class stat:
     def __init__(self,INFO):
+        self.NAME                = 'POS'
         self.DESCRIPTION        =  ['Position of the first mapped base in read','4030012']
         self.LINKABLE           =  True
         self.SQL                =  'INT'

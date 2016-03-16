@@ -1,5 +1,6 @@
 class stat:
     def __init__(self,INFO):
+        self.NAME                = 'TYPE'
         self.DESCRIPTION        =  ['Read Mapping Type (http://ac.gt/type)','20']
         self.LINKABLE           =  True
         self.SQL                =  'INT'

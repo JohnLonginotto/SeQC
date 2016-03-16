@@ -1,6 +1,7 @@
 
 class stat:
     def __init__(self,INFO):
+        self.NAME                = 'TAGS_FULL'
         self.DESCRIPTION      =  ['All optional tags, including data format (SAM ONLY)','[ (NM,i,2),(MD,Z,50) ]']
         self.LINKABLE         =  True
         self.SQL              =  'TEXT'
