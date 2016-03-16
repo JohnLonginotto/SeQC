@@ -1,5 +1,6 @@
 class stat:
     def __init__(self,INFO):
+        self.NAME                = 'SAMECHR'
         self.DESCRIPTION        =  ['If both reads in pair have same chr','True']
         self.LINKABLE           =  True
         self.SQL                =  'INT'

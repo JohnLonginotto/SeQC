@@ -51,6 +51,22 @@ except: htspythonInstalled = False
 try: import psycopg2 ; postgresInstalled = True
 except: postgresInstalled = False
 
+##############################
+## Define DATA READER classes
+##############################
+
+class HtsDataReader(object):
+    def __init__(self):
+        pass
+
+class PysamDataReader(object):
+    def __init__(self):
+        pass
+
+class SamtoolsDataReader(object):
+    def __init__(self):
+        pass
+
 ###########################
 ## Define built-in stats ##
 ##########################################################################################################
@@ -72,7 +88,30 @@ except: postgresInstalled = False
 ## It explains how to use dependencies, the "hidden built-ins", and many example stats.                 ##
 ##                                                                                                      ##
 ##########################################################################################################
-pass
+class SeqcStat(object):
+    def __init__(self, NAME, DESCRIPTION, LINKABLE, SQL):
+        self.NAME = NAME
+        self.DESCRIPTION = DESCRIPTION
+        self.LINKABLE = LINKABLE
+        self.SQL = SQL
+
+    def postprocess_method(self, code):
+        return code
+
+    def after(self, data):
+        pass
+
+class SeqcReadAttr(SeqcStat):
+    """
+    SeqcStat subclass for stats that are really just attributes of the
+    read. That is, things that translate into read.foo or read[7].
+    These are obviously dependent on the reader type.
+    """
+    def __init__(self, NAME, DESCRIPTION, LINKABLE, SQL, reader):
+        super(SeqcReadAttr, self).__init__(NAME=NAME,
+                DESCRIPTION=DESCRIPTION, LINKABLE=LINKABLE, SQL=SQL)
+
+        self.
 
 #######################
 ## Fetch local stats ##
@@ -124,6 +163,19 @@ for potentialStat in os.listdir(os.path.dirname(SeQC)):
         thisFile = os.path.join(os.path.dirname(SeQC), potentialStat)
         if thisFile.endswith('.stat'):
             execfile(thisFile)                            ## I should upgrade this to a proper plugin/module manager, but this works fine for now.
+
+def postprocess_code(code):
+    """
+    Call after stats' .METHOD strings are assembled into a single
+    block of code to handle postprocessing/optimization.
+    """
+    for stat in availableStats:
+        try:
+            code = availableStats[stat]['init'].postprocess_method(code)
+        except AttributeError:
+            # Suppress exceptions - don't have it? No problem!
+            pass
+    return code
 
 ##########################
 ## Fetch external stats ##
@@ -893,7 +945,7 @@ elif args.BAM or args.SAM:
         inline_code('group%d = data[%d]' % (i,i))
 
     inline_code('for reads_processed, read in enumerate(input):')
-    inline_code('if reads_processed & 64 == 0: ping_pong(reads_processed)', indent='        ')
+    inline_code('if reads_processed & 63 == 0: ping_pong(reads_processed)', indent='        ')
 
     # Add stat collection/computation to function
     for a in sorted_analyses:
@@ -912,6 +964,14 @@ elif args.BAM or args.SAM:
     if args.debug:
         print code
 
+    postprocessed_code = postprocess_code(code)
+
+    if args.debug:
+        if postprocessed_code != code:
+            print "Post-processing code"
+            print postprocessed_code
+
+    code = postprocessed_code
     exec(code, globals())
 
     # FIXME: This block should go away in production. I'm leaving it for

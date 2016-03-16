@@ -1,5 +1,6 @@
 class stat:
     def __init__(self,INFO):
+        self.NAME        = 'FLAG'
         self.DESCRIPTION =                     ['Read flags in AC.GT notation (http://ac.gt/flags)', 'ABcdEfGHijKl']
         self.LINKABLE    = True
         self.SQL         = 'TEXT'

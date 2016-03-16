@@ -1,5 +1,6 @@
 class stat:
     def __init__(self,INFO):
+        self.NAME                = 'RNAME'
         self.DESCRIPTION        =  ['Chromosome/Contig of read. "*" becomes "Unmapped"', 'chr1']
         self.LINKABLE           =  True
         self.SQL                =  'TEXT'
