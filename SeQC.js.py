@@ -11,13 +11,11 @@ version = 1//1 ; ''' These two lines are
 
 # Pysam Installation
 ########################
-# For Mac OSX:
 # > sudo easy_install pip
 # > pip install --user pysam
 
 # Postgres Installation:
 ########################
-# For Mac OSX:
 # > ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 # > brew install postgres
 # > sudo easy_install pip
@@ -29,15 +27,15 @@ import re
 import sys
 import csv
 import json
-import textwrap
 import time
 import types
 import urllib
 import getpass
 import sqlite3
 import hashlib
-import StringIO
 import argparse
+import textwrap
+import StringIO
 import datetime
 import fileinput
 import subprocess
@@ -111,7 +109,6 @@ class SeqcReadAttr(SeqcStat):
         super(SeqcReadAttr, self).__init__(NAME=NAME,
                 DESCRIPTION=DESCRIPTION, LINKABLE=LINKABLE, SQL=SQL)
 
-        self.
 
 #######################
 ## Fetch local stats ##
