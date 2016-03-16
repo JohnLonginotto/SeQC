@@ -1,0 +1,9 @@
+*.bam
+*.sam
+*.SeQC
+include/
+lib/
+bin/
+.Python
+pip-selfcheck.json
+
