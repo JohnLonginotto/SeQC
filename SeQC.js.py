@@ -825,8 +825,8 @@ elif args.BAM or args.SAM:
         sizeInBytes = os.path.getsize(inputFile)
         pipe = subprocess.PIPE
         ## samtools doesn't print the count if the file is truncated, so we're stuck with this garbage:
-        if estimate: readCounting = subprocess.Popen('"'+ samtools +'" view -h - | "'+ samtools +'" view -c -',stderr=pipe,stdin=pipe,stdout=pipe,shell=True,executable='/bin/bash')
-        else:        readCounting = subprocess.Popen('"'+ samtools +'" view -c -',                             stderr=pipe,stdin=pipe,stdout=pipe,shell=True,executable='/bin/bash')
+        if estimate: readCounting = subprocess.Popen('"'+ samtools +'" view -bh - | "'+ samtools +'" view -c -',stderr=pipe,stdin=pipe,stdout=pipe,shell=True,executable='/bin/bash')
+        else:        readCounting = subprocess.Popen('"'+ samtools +'" view -c -',                              stderr=pipe,stdin=pipe,stdout=pipe,shell=True,executable='/bin/bash')
         md5 = hashlib.md5()
         chunkSize = 128 * md5.block_size
         ping.change('#',sizeInBytes)
