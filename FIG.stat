@@ -4,7 +4,7 @@ class stat:
         self.DESCRIPTION        =  ['First In Genome - read genomically before mate','True']
         self.LINKABLE           =  True
         self.SQL                =  'INT'
-        self.dependencies       = ['FLAG','SAMECHR','POS']
+        self.dependencies       = ['FLAG','SAMECHR','POS','PNEXT']
         self.METHOD             = '''
 if any(letter in ['C','D'] for letter in FLAG): FIG = None
 elif SAMECHR == False:                          FIG = None
