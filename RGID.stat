@@ -9,6 +9,7 @@ class stat:
 for tag_name,tag_value in TAGS:
     if tag_name == 'RG':
         RGID = tag_value
+        break
 else:   RGID = None 
 '''
 addStat('RGID',[])
