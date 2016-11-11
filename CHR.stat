@@ -17,5 +17,7 @@ except KeyError:
 CHR_list = [ x['SN'] for x in json.loads(header)['SQ']]
 '''
         else:
-            print 'The CHR module requires pysam until after i have finished my PhD :('
+            'This is run with "sam" and im not even sure why... uncomment below after porting to pybam'
+            #print 'The CHR module requires pysam until after i have finished my PhD :('
+
 addStat('CHR',[])
