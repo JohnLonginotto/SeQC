@@ -1,0 +1,21 @@
+class stat:
+    def __init__(self,INFO):
+        self.DESCRIPTION =  ['Chromosome/contig read maps to. "*" becomes "Unmapped"', 'chr1'] 
+        self.LINKABLE   = True 
+        self.SQL = 'TEXT'
+        self.dependencies = ['RNAME']
+        self.METHOD       = \
+'''
+try: CHR = CHR_list[RNAME]
+except KeyError:
+    print 'This BAM file is corrupt. There was a read with the RNAME',RNAME,'but that value did not exist in the header.'
+    exit()
+'''
+        if INFO['fileReader'] == 'pysam' or INFO['fileReader'] == None:
+            self.before = \
+'''
+CHR_list = [ x['SN'] for x in json.loads(header)['SQ']]
+'''
+        else:
+            print 'The CHR module requires pysam until after i have finished my PhD :('
+addStat('CHR',[])
