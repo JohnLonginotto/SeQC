@@ -1,7 +1,7 @@
 class stat:
     def __init__(self,INFO):
         self.NAME                = 'RNAME'
-        self.DESCRIPTION        =  ['Chromosome/Contig of read. "*" becomes "Unmapped"', 'chr1']
+        self.DESCRIPTION        =  ['RNAME number (not the chromosome as text!) ', '0']
         self.LINKABLE           =  True
         self.SQL                =  'TEXT'
         if   INFO['fileReader'] == 'sam':       self.METHOD = 'RNAME = read[2]'
@@ -9,9 +9,6 @@ class stat:
         elif INFO['fileReader'] == 'htspython': self.METHOD = 'RNAME = read._b.core.tid'
         else:                                   self.METHOD =  None
 
-        ## Chromsome is a pain, because it's not stored at the read-level per-se, rather it's converted from an int to the actual chromosome using a mapping in the header
-        ## This means that if we were to bin reads based on their actual chromosome name, it would be really slow. Much faster to bin using the original ints, then convert
-        ## to an actual chromosome name.... now.
         if INFO['fileReader'] == 'pysam':
             self.after = \
 '''
@@ -27,4 +24,3 @@ for row in range(0,len(table)):
 ''' 
         else: self.after = None # Not needed if we're reading a SAM. Although maybe * becomes Unmapped?
 addStat('RNAME',[])
-
