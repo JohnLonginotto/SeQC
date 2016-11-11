@@ -340,7 +340,7 @@ if args.md5:
         print 'Compatible With:'.rjust(16),stat['compatible'],'\n';
     exit()
 
-## It takes your stats and returns all stats (so, includes the dependancies, and the dependancies of dependancies..)
+## It takes your stats and returns all stats (so, includes the dependencies, and the dependencies of dependencies..)
 def get_all_modules_to_run(stat_name):
     if hasattr(availableStats[stat_name]['init'],'dependencies'):
         immediate_dependencies = set(availableStats[stat_name]['init'].dependencies)
