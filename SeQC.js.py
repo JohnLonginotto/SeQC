@@ -371,10 +371,10 @@ for group in args.analysis:
             print 'If the .stat file for this statistic is not in the same directory as SeQC, you may need to download it from http://ac.gt/seqc\n'; exit()
         if availableStats[stat]['init'].LINKABLE == False and len(group) != 1:
             print '\nERROR: Unlinkable stats must go in their own --analysis group! Please take "' + stat + '" out of --analysis ' + ' '.join(group); exit()
-        allAnalyses.update(get_all_modules_to_run(stat)) # Recurses all dependancies too.
+        allAnalyses.update(get_all_modules_to_run(stat)) # Recurses all dependencies too.
     allGroups.add(tuple(sorted(group)))                  # sorted returns a list but we need a hashable tuple.
 args.analysis = sorted(allGroups)                        # A sorted list of sorted tuples.
-sorted_analyses = []                                     # This is a non-redundant list of the analyses used (and there dependancies), in the order they need to be run.
+sorted_analyses = []                                     # This is a non-redundant list of the analyses used (and there dependencies), in the order they need to be run.
 for analysis in topological_order:
     if analysis in allAnalyses:
         sorted_analyses.append(analysis)
