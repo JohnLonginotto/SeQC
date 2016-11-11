@@ -78,16 +78,16 @@ class stat:                   # dont change this
                                                 # Users however will be warned that the vizulization code has not been checked by AC.GT, and they can accept (or not) the code
                                                 # after reviewing it for themselves.
 
-        self.dependancies = ['SEQ']             # Due to the way python interacts with hts-lib (the C code that actually gets data out of the BAM file), repeat requests
+        self.dependencies = ['SEQ']             # Due to the way python interacts with hts-lib (the C code that actually gets data out of the BAM file), repeat requests
                                                 # to something like "read.seq" (the DNA in the read's SEQ field) add up. If two stats thenfore both need SEQ to claculate
                                                 # their statistic, we will be 2x slower processing the data than if we fetched SEQ once, then used it in both modules.
                                                 # For this reason, we urge module developers to never interact with the underlying pysam/hts-python libraries directly if
                                                 # they can help it. Instead, specify the stat name (in this case "SEQ" here. This way, the "SEQ" variable, will have it's 
-                                                # value set and availible before this module is run. It is always better to use dependancies that roll your own, and due to the
+                                                # value set and availible before this module is run. It is always better to use dependencies that roll your own, and due to the
                                                 # way code is dynamically inlined, there's no penalty at all for using them. This means it can often be a good idea to break your
                                                 # module up into a chain of modules all dependant on the previous modules in the chain. The TYPE module is a good example of this.
-                                                # Dependancies is an optional parameter and can be excluded or set to None/False. If you do wish to provide one or more
-                                                # Dependancies however, you must provide here a list of strings, where the string is the name of the module to run first.
+                                                # Dependencies is an optional parameter and can be excluded or set to None/False. If you do wish to provide one or more
+                                                # Dependencies however, you must provide here a list of strings, where the string is the name of the module to run first.
 
         self.METHOD       = 'print "whoop!"'    # The code (as a string) that SeQC should execute for each read it processes in the SAM/BAM file is found in self.METHOD
                                                 # The code can be many lines and do many things - the only criteria is that the final "result" for the stat (per read for 
@@ -95,7 +95,7 @@ class stat:                   # dont change this
                                                 # You can use indentations in any format you like. Such freedoms. What a time to be alive.
 
         if INFO['fileReader'] == 'sam':         # However, for some modules we need to know exactly how we are reading the file. This is particularly true for the built-in
-          self.METHOD = 'QNAME = read[0]'       # functions where we cannot simply use other modules as dependancies (which is usually recommended).
+          self.METHOD = 'QNAME = read[0]'       # functions where we cannot simply use other modules as dependencies (which is usually recommended).
         elif INFO['fileReader'] == 'pysam':     # We do this by passing the "fileReader" variable to the class when we initialize it, and then using that here to decide what
           self.METHOD = 'QNAME = read.qname'    # the method should be. Currently, values for fileReader can be 'sam', 'pysam' and 'htspython'. There may be more in the future.
         elif INFO['fileReader'] == 'htspython': # In fact the INFO my be used in the future to extend modules by setting extra paramters at runtime beyond fileReader.
@@ -130,7 +130,7 @@ addStat('STAT_NAME',[])                         # Finally, to initialize your st
                                                 # include duplicate reads but the latter does. To get around this issue, all modules are MD5'd before going into the database's
                                                 # METHODs table. When data is shared, so is the code to generate it. However, unlike a regular file MD5, only the data before 
                                                 # the addStat() line is used in the hash. Everything else is deleted, and the stat name and list of MD5s are stored seperately.
-                                                # This means changing the name of a stat, or setting dependancies, does not effect the MD5 of the stat itself. This allows two
+                                                # This means changing the name of a stat, or setting dependencies, does not effect the MD5 of the stat itself. This allows two
                                                 # module writers a way to mark each other's stat as compatible, or one of them can change their name with no fuss.
 
                                                 # To get the MD5 sum of a module, use --md5 with it loaded as a .stat module, or look it up in the METHOD table of the 
