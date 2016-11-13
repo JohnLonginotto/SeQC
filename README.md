@@ -1,12 +1,14 @@
 # SeQC
 
-_SeQC is still very much in the pre-Alpha stage of development. A lot has changed over the last year since the videos you may have seen on vimeo (http://vimeo.com/123508180), so it is advised to not get too familar with the SeQC code until after my PhD has finished and I can actually work on this and other projects full-time._
+_SeQC is still very much in the Alpha stage of development. A lot has changed over the last year since the videos you may have seen on vimeo (http://vimeo.com/123508180), so it is advised to not get too familar with the SeQC code until after my PhD has finished and I can actually work on this and other projects full-time._
 
 SeQC is a "quality-control analysis" tool, but it is not like FASTQC or similar. Written entirely in Python, SeQC is designed to help you to investigate the nature of sequencing data at scale, get to grips with your raw data, and write your own modules to do custom analysis with very little extra code needed.
 
 It differs from other tools by outputing data to either an SQLite or Postegres SQL database (SeQL format). Data in SeQL format can be vizulised through the SeQL webservice, which comes with a number of generic plugins to look at quantitative data. All of your QC data from your project, your lab, or even your whole institute, can be loaded into a single SeQL database, so all your QC data is in one place.
 
-The SeQL webservice will also allow you to communicate with other SeQL databases (to compare data) and offers you the ability to host your data for others to see - either publicly or privately. For SeQC this means you can compare your mapping rates to other publications, look for odd trends in you data and see if it exists in others, etc etc.
+The SeQL webservice will also allow you to communicate with other SeQL databases (to compare data) and offers you the ability to host your data for others to see - either publicly or privately. For SeQC this means you can compare your mapping rates to other publications, look for odd trends in your data, etc etc.
+
+Once the code has been finalized and we have settled on the first Beta release, a full guide to using and extending SeQC will be published :) 
 
 UPDATE 13th November 2016:
 SeQC will be getting a big update soon, notably:
