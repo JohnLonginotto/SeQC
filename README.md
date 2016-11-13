@@ -1,6 +1,6 @@
 # SeQC
 
-_SeQC is still very much in the pre-Alpha stage of development. A lot has changed over the last year since the videos you may have seen on vimeo (http://vimeo.com/123508180), and i'm currently in the process of updating the website code to match the new database structure. Fortunately the database-creation side of things is fairly locked-in._
+_SeQC is still very much in the pre-Alpha stage of development. A lot has changed over the last year since the videos you may have seen on vimeo (http://vimeo.com/123508180), so it is advised to not get too familar with the SeQC code until after my PhD has finished and I can actually work on this and other projects full-time._
 
 SeQC is a "quality-control analysis" tool, but it is not like FASTQC or similar. Written entirely in Python, SeQC is designed to help you to investigate the nature of sequencing data at scale, get to grips with your raw data, and write your own modules to do custom analysis with very little extra code needed.
 
